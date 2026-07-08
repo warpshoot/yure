@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ゆれ</title>
+<style>
+:root{
+  --bg:#1b1d22; --panel:#24272e; --panel2:#2c3038; --line:#3a3f4a;
+  --tx:#e8eaf0; --tx2:#9aa1af; --acc:#5aa7ff; --danger:#ff6b81;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;
+  font-size:13px; display:flex; flex-direction:column; overflow:hidden;
+}
+header{
+  display:flex; align-items:center; gap:12px; padding:8px 14px;
+  background:var(--panel); border-bottom:1px solid var(--line); flex:0 0 auto;
+}
+header h1{font-size:16px; font-weight:700;}
+header .ver{color:var(--tx2); font-size:11px;}
+header .note{color:var(--tx2); font-size:11px; margin-left:auto;}
+main{flex:1 1 auto; display:flex; min-height:0;}
+#stage{
+  flex:1 1 auto; position:relative; min-width:0; background:
+  repeating-conic-gradient(#20232a 0 25%, #23262d 0 50%) 0 0/24px 24px;
+}
+#glcv,#ovcv{position:absolute; inset:0; width:100%; height:100%;}
+#ovcv{pointer-events:none;}
+#hit{position:absolute; inset:0; touch-action:none;}
+#drophint{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:10px; color:var(--tx2); pointer-events:none; text-align:center;
+}
+#drophint b{font-size:18px; color:var(--tx);}
+#stage.drag::after{
+  content:"ここにドロップ"; position:absolute; inset:8px; border:2px dashed var(--acc);
+  border-radius:12px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; color:var(--acc); background:rgba(90,167,255,.08);
+}
+#panel{
+  flex:0 0 300px; overflow-y:auto; background:var(--panel);
+  border-left:1px solid var(--line); padding:10px 12px 40px;
+}
+.sec{margin-bottom:14px;}
+.sec>h2{
+  font-size:11px; color:var(--tx2); letter-spacing:.08em; margin-bottom:6px;
+  border-bottom:1px solid var(--line); padding-bottom:3px;
+}
+button{
+  background:var(--panel2); color:var(--tx); border:1px solid var(--line);
+  border-radius:6px; padding:5px 10px; cursor:pointer; font-size:12px;
+}
+button:hover{border-color:var(--acc);}
+button.on{background:var(--acc); color:#0b1220; border-color:var(--acc); font-weight:700;}
+button.rec{background:var(--danger); color:#fff; border-color:var(--danger);}
+button:disabled{opacity:.4; cursor:default;}
+.row{display:flex; gap:6px; align-items:center; margin:5px 0; flex-wrap:wrap;}
+.row label{color:var(--tx2);}
+.sl{display:grid; grid-template-columns:64px 1fr 40px; gap:6px; align-items:center; margin:4px 0;}
+.sl span.v{text-align:right; color:var(--tx2); font-variant-numeric:tabular-nums;}
+input[type=range]{width:100%; accent-color:var(--acc); height:18px;}
+select{background:var(--panel2); color:var(--tx); border:1px solid var(--line); border-radius:5px; padding:3px 5px;}
+#brOpGroup .opBtn{min-width:30px; text-align:center; padding:5px 0;}
+#layers{display:flex; gap:5px; flex-wrap:wrap;}
+.ltab{
+  display:flex; align-items:center; gap:5px; padding:4px 8px; border-radius:6px;
+  border:1px solid var(--line); cursor:pointer; background:var(--panel2); user-select:none;
+}
+.ltab.act{border-color:#fff;}
+.ltab.pin{border-style:dashed;}
+.ltab.pin .dot{border-radius:2px;}
+.ltab .dot{width:10px; height:10px; border-radius:50%; position:relative; overflow:hidden; cursor:pointer;}
+.ltab .dot input[type=color]{position:absolute; inset:-4px; opacity:0; cursor:pointer; border:0; padding:0;}
+.ltab .eye{opacity:.9; cursor:pointer;}
+.ltab .eye.off{opacity:.25;}
+.ltab .disp{opacity:.9; cursor:pointer;}
+.ltab .disp.off{opacity:.25;}
+.ltab .del{color:var(--tx2); cursor:pointer; padding:0 2px;}
+.ltab .del:hover{color:var(--danger);}
+#gifout{margin-top:6px;}
+#gifout img{max-width:100%; border:1px solid var(--line); border-radius:6px; margin-top:6px;}
+#gifout a{color:var(--acc);}
+#prog{color:var(--tx2); font-size:12px; min-height:16px;}
+#keybar{
+  flex:0 0 auto; background:var(--panel); border-top:1px solid var(--line);
+  color:var(--tx2); font-size:11px; padding:4px 14px; display:flex; gap:18px;
+}
+#keybar b{color:var(--tx);}
+details.help{color:var(--tx2); font-size:12px; line-height:1.7;}
+details.help summary{cursor:pointer; color:var(--tx);}
+.small{font-size:11px; color:var(--tx2); line-height:1.5;}
+
+/* ===== スマホ対応（レイアウトのみ上乗せ・ロジック非改変） ===== */
+#mobToggle{display:none;}
+@media (max-width:820px),(pointer:coarse){
+  header .note{display:none;}
+  header{padding:7px 12px;}
+  header h1{font-size:15px;}
+  #keybar{display:none;}
+  main{position:relative;}
+  #stage{width:100%;}
+
+  /* 設定パネルをボトムシート化 */
+  #panel{
+    position:fixed; left:0; right:0; bottom:0;
+    flex:none; width:100%; max-height:78vh;
+    border-left:none; border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0;
+    box-shadow:0 -10px 30px rgba(0,0,0,.55);
+    padding:24px 14px calc(28px + env(safe-area-inset-bottom));
+    transform:translateY(100%);
+    transition:transform .26s ease;
+    z-index:40; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  }
+  body.sheet-open #panel{transform:translateY(0);}
+  #panel::before{
+    content:""; position:absolute; top:9px; left:50%; transform:translateX(-50%);
+    width:44px; height:4px; border-radius:2px; background:var(--line);
+  }
+
+  /* 開閉トグル（フローティング） */
+  #mobToggle{
+    display:inline-flex; align-items:center; gap:6px;
+    position:fixed; right:14px; bottom:calc(14px + env(safe-area-inset-bottom));
+    z-index:50; background:var(--acc); color:#0b1220; font-weight:700;
+    border:none; border-radius:26px; padding:12px 20px; font-size:15px;
+    box-shadow:0 6px 18px rgba(0,0,0,.45);
+  }
+  body.sheet-open #mobToggle{bottom:auto; top:calc(50px + env(safe-area-inset-top));}
+
+  /* タッチ用に各コントロールを拡大 */
+  button{padding:10px 13px; font-size:14px; min-height:44px;}
+  #brOpGroup .opBtn{min-width:44px; min-height:44px; padding:0;}
+  .ltab{padding:8px 10px;}
+  .ltab .dot{width:16px; height:16px;}
+  select{padding:9px 8px; font-size:14px; min-height:42px;}
+  input[type=range]{height:32px;}
+  .sl{grid-template-columns:54px 1fr 38px; gap:8px; margin:8px 0;}
+  .row{gap:8px; margin:7px 0;}
+  .sec{margin-bottom:18px;}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>ゆれ</h1><span class="ver">v3.0 (2026.07)</span>
+  <span class="note">ローカル完結・画像は外部送信しません</span>
+</header>
+<main>
+  <div id="stage">
+    <canvas id="glcv"></canvas>
+    <canvas id="ovcv"></canvas>
+    <div id="hit"></div>
+    <div id="drophint">
+      <b>画像をここにドロップ</b>
+      <span>または「画像を開く」／ Ctrl+V で貼り付け</span>
+    </div>
+  </div>
+  <div id="panel">
+    <div class="sec">
+      <h2>画像</h2>
+      <div class="row">
+        <button id="btnOpen">画像を開く</button>
+        <input type="file" id="file" accept="image/*" style="display:none">
+        <span id="imgInfo" class="small"></span>
+      </div>
+    </div>
+    <div class="sec">
+      <h2>モード</h2>
+      <div class="row">
+        <button id="mPaint" class="on" title="塗って揺れを作るモード">✏️ 編集</button>
+        <button id="mPlay" title="つついたり眺めたりするモード">👀 鑑賞</button>
+        <button id="btnAuto" class="on" style="margin-left:auto" title="自動ゆれの再生/停止（モードごとに記憶・Space）">🌀 自動ゆれ</button>
+      </div>
+      <div class="row" id="playOpts" style="display:none">
+      </div>
+      <div class="small" id="modeHint"></div>
+    </div>
+    <div class="sec">
+      <h2>領域（レイヤー）</h2>
+      <div id="layers"></div>
+      <div class="row">
+        <button id="btnAddLayer">＋ 領域を追加</button>
+        <button id="btnShowAll" title="塗りの表示を📌固定も含めて全部まとめてON/OFF（動作には影響しません）">👁 全表示切替</button>
+      </div>
+      <div id="brushBox">
+        <div class="row">
+          <label>ツール</label>
+          <button id="toolBrush" class="on" title="ドラッグで塗る">🖌 ブラシ</button>
+          <button id="toolWand" title="クリックした場所と近い色のつながった範囲を一発選択">🪄 ワンド</button>
+          <button id="toolErase" title="ドラッグで消す（太さ・強さは消しゴム専用に記憶されます）">🧹 消しゴム</button>
+        </div>
+        <div class="sl" id="sizeRow"><label id="brSizeLabel">ブラシ</label><input type="range" id="brSize" min="8" max="300" value="70"><span class="v" id="brSizeV"></span></div>
+        <div id="brushOpts">
+          <div class="row">
+            <button id="btnSnap" title="画像の輪郭（色の境界）でブラシが止まる。髪や服のフチをはみ出さず塗れます">🧲 エッジで止まる</button>
+          </div>
+          <div class="sl" id="snapRow" style="display:none"><label>境界の強さ</label><input type="range" id="snapTh" min="5" max="80" value="28"><span class="v" id="snapThV"></span></div>
+        </div>
+        <div id="wandOpts" style="display:none">
+          <div class="sl"><label>許容値</label><input type="range" id="wandTol" min="2" max="90" value="26"><span class="v" id="wandTolV"></span></div>
+          <div class="small">クリック＝追加／右クリック＝その範囲を消す</div>
+        </div>
+        <div class="row" id="brOpGroup" title="揺れへの影響度。なぞり直すとその場所は新しい値で上書きされます">
+          <label>影響度</label>
+          <button class="opBtn" data-op="20">1</button>
+          <button class="opBtn" data-op="40">2</button>
+          <button class="opBtn" data-op="60">3</button>
+          <button class="opBtn" data-op="80">4</button>
+          <button class="opBtn" data-op="100">5</button>
+        </div>
+        <div class="row">
+          <button id="btnUndo">戻す</button>
+          <button id="btnRedo">やり直す</button>
+          <button id="btnClearMask">全消し</button>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <h2 id="paramHead">揺れ設定</h2>
+      <div class="row">
+        <label>プリセット</label>
+        <select id="presetSel" title="選んでから「適用」を押すと今の領域に設定一式を適用します">
+          <option value="">選ぶ…</option>
+          <option value="hair">髪</option>
+          <option value="chest">胸</option>
+          <option value="tayun">胸（たゆん）</option>
+          <option value="breath">呼吸</option>
+          <option value="blink">まばたき</option>
+          <option value="smile">にっこり</option>
+          <option value="tilt">かしげ</option>
+          <option value="slow">ゆったり</option>
+          <option value="fine">小刻み</option>
+        </select>
+        <button id="btnApplyPreset" disabled>適用</button>
+      </div>
+      <div class="small" id="presetDesc"></div>
+      <div class="row">
+        <label>変形</label>
+        <button id="mode0" title="一方向にスイング">ゆれる</button>
+        <button id="mode1" title="重心から放射状にふくらむ">ふくらむ</button>
+        <button id="mode2" title="「つぶす向き」の先を支点に、領域を圧縮（まばたき・口の開閉に）">つぶす</button>
+        <button id="mode3" title="重心を軸にくるっと回す。波打ちを足すと外側が遅れてしなる（首かしげ・尻尾・小物に）">ひねる</button>
+        <button id="mode4" title="縦横で位相をずらした楕円〜8の字軌道。胸のように柔らかく回り込む揺れに（倍音で8の字味）">たゆん</button>
+      </div>
+      <div class="row">
+        <label>リズム</label>
+        <button id="curve0" title="いつも揺れている（サイン波）">なみ</button>
+        <button id="curve1" title="普段は止まっていて、ときどきパチッと動く（まばたきに）">パルス</button>
+        <button id="curve2" title="ゆっくり変形→キープ→戻る（表情の切り替えに）">キープ</button>
+      </div>
+      <div id="params"></div>
+    </div>
+    <div class="sec">
+      <h2>書き出し</h2>
+      <div class="row">
+        <label>長さ</label>
+        <select id="gifDur"><option value="auto">自動（完全ループ）</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>6</option></select><span class="small">秒</span>
+        <label>FPS</label>
+        <select id="gifFps"><option>10</option><option>15</option><option selected>20</option><option>25</option></select>
+      </div>
+      <div class="row">
+        <label>幅</label>
+        <select id="gifW"><option>320</option><option>480</option><option selected>640</option><option>960</option><option value="0">原寸</option></select><span class="small">px</span>
+      </div>
+      <div class="row">
+        <button id="btnGif" title="生成するとまず下にプレビューが出ます。保存はプレビューのリンクから">🎞 GIF生成 → プレビュー</button>
+        <button id="btnPng">連番PNG (zip)</button>
+      </div>
+      <div class="small">※ループが繋がるよう速さを自動微調整します。GIFは生成後に下でプレビュー確認→リンクから保存。連番PNGは透過保持・フルカラー。</div>
+      <div class="small" id="loopInfo"></div>
+      <div id="prog"></div>
+      <div id="gifout"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnRec">● WebM録画（操作もそのまま録れる）</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnPage">🌐 ふれるページ書き出し（HTML）</button>
+      </div>
+      <div class="small">画像ごと埋め込んだ単体HTML。開いた人がマウスでつつける"さわれる静止画"として配れます。</div>
+    </div>
+    <div class="sec">
+      <h2>保存</h2>
+      <div class="row">
+        <button id="btnSaveJson">マスク＋設定を保存</button>
+        <button id="btnLoadJson">読み込み</button>
+        <input type="file" id="fileJson" accept=".json" style="display:none">
+      </div>
+      <div class="small">画像本体は保存されません。同じ画像を開いてから読み込んでください。</div>
+    </div>
+    <div class="sec">
+      <details class="help">
+        <summary>ヘルプ</summary>
+        1. 画像を開く → 揺らしたい部分をブラシで塗る（右ドラッグで消し）。🪄ワンドならクリックで同じ色の範囲を一発選択、🧲エッジで止まるをONにするとブラシが輪郭からはみ出さない<br>
+        2. スライダーで揺れを調整（塗った瞬間から動きます）。「変形」×「リズム」の組み合わせで表現が変わる：まばたき＝つぶす×パルス、にっこり＝ゆれる×キープ、首かしげ＝ひねる×キープ（プリセットから選べます）。ひねるの軸は塗った領域の重心。📌固定を塗ると軸がそっちと反対側に寄ります<br>
+        3. 「鑑賞」モードで塗った所をドラッグ＝つつく、外をドラッグ＝シェイク。自動ゆれ🌀はモードごとにON/OFFできます（Space）。収まり方は「減衰」で調整<br>
+        4. 領域を分けると髪と胸を別々の揺れ・タイミングにできます（最大8つ・ダブルクリックで名前変更）<br>
+        5. 📌固定を塗ると、その部分は揺れなくなります（髪の根元・体の軸に）<br>
+        6. 背景ドラッグで画像全体をシェイク<br>
+        7. GIF書き出し / WebM録画 / ふれるページ（さわれるHTML）で保存。長さ「自動（完全ループ）」で全領域の周期がピッタリ繋がる1周を書き出せます
+      </details>
+    </div>
+  </div>
+</main>
+<button id="mobToggle" aria-label="設定パネル開閉" onclick="var o=document.body.classList.toggle('sheet-open');this.textContent=o?'✕ 閉じる':'☰ 設定';">☰ 設定</button>
+<div id="keybar">
+  <span><b>Space</b> 自動ゆれ</span><span><b>B</b> ブラシ / <b>W</b> ワンド / <b>E</b> 消しゴム / <b>G</b> 鑑賞</span>
+  <span><b>[ ]</b> ブラシ/消しゴムサイズ</span>
+  <span><b>Ctrl+Z / Y</b> 戻す・やり直す</span><span><b>右ドラッグ</b> 消しゴム</span>
+  <span><b>ホイール</b> ズーム</span><span><b>中/Alt+ドラッグ</b> パン</span><span><b>0</b> 全体表示</span>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   ゆれ助 v2.0 — 画像の指定範囲をゆらす単一HTMLツール
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const TAU = Math.PI*2;
+const MAXL = 8;
+const LCOLORS = ["#ff5b7f","#4da3ff","#ffd23e","#7dff8a","#c78bff","#ff9e4d","#4dfff0","#ff7ad9"];
+const LS_KEY = "yuresuke-v2";
+
+/* ---------- 状態 ---------- */
+const state = {
+  img: null, imgW: 0, imgH: 0, imgName: "",
+  layers: [], active: 0,
+  mode: "paint",           // paint(編集) | play(鑑賞)
+  autoPlay: {paint: true, play: true},   // モードごとの「自動ゆれ」再生状態
+  tool: "brush",           // brush | wand | eraser
+  toolCfg: {brush: {size:70, op:100}, eraser: {size:110, op:100}}, // ツール別に記憶
+  wandTol: 26,             // ワンド許容値（色距離）
+  edgeSnap: false,         // ブラシがエッジで止まる
+  snapTh: 28,              // エッジ判定のしきい値
+  brushSize: 70, brushOp: 100,           // 影響度(%) = 塗りの不透明度＝揺れの強さ（なぞり直すと上書き）
+  t: 0,
+  imgOff: {x:0, y:0, vx:0, vy:0, drag:false, px:0, py:0},
+  view: {x:0, y:0, w:1, h:1, scale:1, fit:1},   // 画像の表示矩形(表示px)
+  paintPin: false,                       // 📌固定マスクを塗り対象にする
+  maskAlpha: 45,                         // 塗り表示の濃さ(%・固定値。表示ON/OFFはレイヤーの🎨で切替)
+};
+const EDGE_SOFT = 6; // 重みの縁を軽く滑らかにする固定ぼかし(画像px)
+// 📌固定（ピン留め）マスク: 塗った所は全レイヤーの揺れを抑える
+const pinLayer = {
+  isPin: true, color: "#e8eaf0", name: "📌固定", on: true, show: true, painted: false,
+  canvas: null, ctx: null, undo: [], redo: [],
+};
+
+function newLayer(i){
+  return {
+    color: LCOLORS[i], customColor: false, name: "領域"+(i+1), on: true, show: true, painted: false,
+    canvas: null, ctx: null,          // マスク(画像解像度)
+    wArr: null,                        // ぼかし済み重み(縮小)
+    sp: {x:0, y:0, vx:0, vy:0},        // バネ状態(画像px)
+    undo: [], redo: [],
+    ctr: null, ref: 100,               // マスク重心・基準半径（ふくらむ用）
+    p: { amp:14, freq:0.8, ang:0, wave:22, noise:40, hm:30, ph:0, mode:0, curve:0, damp:30 },
+  };
+}
+const PRESETS = {
+  hair  : {amp:14, freq:0.8,  ang:0,  wave:22, noise:40, hm:30, ph:0, mode:0, curve:0, damp:25},
+  chest : {amp:12, freq:1.4,  ang:90, wave:6,  noise:12, hm:38, ph:0, mode:0, curve:0, damp:45},
+  tayun : {amp:16, freq:1.1,  ang:90, wave:8,  noise:14, hm:30, ph:0, mode:4, curve:0, damp:45},
+  slow  : {amp:20, freq:0.35, ang:0,  wave:14, noise:45, hm:25, ph:0, mode:0, curve:0, damp:20},
+  fine  : {amp:5,  freq:3.0,  ang:0,  wave:10, noise:20, hm:20, ph:0, mode:0, curve:0, damp:30},
+  breath: {amp:8,  freq:0.25, ang:90, wave:3,  noise:18, hm:22, ph:0, mode:1, curve:0, damp:30},
+  // まばたき: 目（まぶた）を塗って使う。下端を支点に縦につぶす×パルス
+  blink : {amp:52, freq:0.28, ang:90, wave:0,  noise:25, hm:14, ph:0, mode:2, curve:1, damp:30},
+  // にっこり: 口角・頬を塗って使う。斜め上へ引っぱる×キープ
+  smile : {amp:9,  freq:0.14, ang:262,wave:0,  noise:0,  hm:26, ph:0, mode:0, curve:2, damp:30},
+  // かしげ: 頭や小物を塗って使う。重心を軸にゆっくり傾けてキープ
+  tilt  : {amp:16, freq:0.12, ang:0,  wave:6,  noise:12, hm:30, ph:0, mode:3, curve:2, damp:30},
+};
+// プリセットの使い方（選んだ時にヒントとして表示）
+const PRESET_INFO = {
+  hair  : "髪全体を塗って使う。ふわっと一方向に揺れる基本セット（ゆれる×なみ）",
+  chest : "胸を塗って使う。上下に弾むような揺れ（ゆれる×なみ）",
+  tayun : "胸を塗って使う。楕円〜8の字でやわらかく回り込む揺れ（たゆん）。倍音で8の字の強さを調整",
+  breath: "お腹や肩を塗って使う。ゆっくり膨らんで戻る呼吸の動き（ふくらむ×なみ）",
+  blink : "目（まぶた）を塗って使う。下端を支点に縦につぶす×パルス",
+  smile : "口角・頬を塗って使う。斜め上へ引っぱる×キープ",
+  tilt  : "頭や小物を塗って使う。重心を軸にゆっくり傾けてキープ",
+  slow  : "揺れをゆっくり大きく。背景の布や大きめのパーツに（ゆれる×なみ）",
+  fine  : "細かく速い揺れ。飾りやアクセサリーなど小さいパーツに（ゆれる×なみ）",
+};
+// 単位変換
+const cvWave  = v => v*0.0006;   // → rad/px
+const cvNoise = v => v/125;      // → 0..0.8
+const cvHm    = v => v/100;      // → 0..0.6
+const cvPh    = v => v*Math.PI/180;
+// ゆらぎ用の低周波（レイヤーごとに少しずらす）
+const NF1 = [0.19, 0.23, 0.17, 0.21, 0.18, 0.22, 0.16, 0.24];
+const NF2 = [0.31, 0.29, 0.37, 0.33, 0.35, 0.28, 0.39, 0.32];
+
+/* ---------- WebGL ---------- */
+const glcv = $("#glcv"), ovcv = $("#ovcv"), stage = $("#stage"), hit = $("#hit");
+const gl = glcv.getContext("webgl", {alpha:false, preserveDrawingBuffer:true});
+const octx = ovcv.getContext("2d");
+
+const VS = `
+attribute vec2 a_pos;
+uniform vec4 u_rect;   // x,y(左上clip), w,h(clip幅高)
+uniform vec2 u_shift;
+varying vec2 v_uv;
+void main(){
+  v_uv = a_pos;
+  vec2 c = vec2(u_rect.x + a_pos.x*u_rect.z, u_rect.y - a_pos.y*u_rect.w);
+  gl_Position = vec4(c + u_shift, 0.0, 1.0);
+}`;
+const FS = `
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_img;
+uniform sampler2D u_w;
+uniform sampler2D u_w2;
+uniform vec2 u_imgSize;
+uniform float u_t;
+uniform float u_amp[8];
+uniform float u_freq[8];
+uniform float u_dirx[8];
+uniform float u_diry[8];
+uniform float u_waveK[8];
+uniform float u_noise[8];
+uniform float u_ph0[8];
+uniform float u_hm[8];
+uniform float u_nf1[8];
+uniform float u_nf2[8];
+uniform vec2 u_spr[8];
+uniform float u_on[8];
+uniform float u_mode[8];
+uniform float u_curve[8];
+uniform vec2 u_ctr[8];
+uniform float u_ref[8];
+uniform vec3 u_bg;
+uniform float u_keepA;
+const float TAU = 6.2831853;
+void main(){
+  vec2 p = v_uv * u_imgSize;
+  vec4 w4a = texture2D(u_w, v_uv);
+  vec4 w4b = texture2D(u_w2, v_uv);
+  vec2 off = vec2(0.0);
+  vec2 pe = min(p, u_imgSize - p);
+  float edgeFade = clamp(min(pe.x, pe.y)/64.0, 0.0, 1.0);
+  edgeFade = edgeFade*edgeFade*(3.0-2.0*edgeFade); // 端ほど重みを落としてuvクランプの筋を抑える
+  for(int i=0;i<8;i++){
+    float w = (i<4)
+      ? ((i==0) ? w4a.r : ((i==1) ? w4a.g : ((i==2) ? w4a.b : w4a.a)))
+      : ((i==4) ? w4b.r : ((i==5) ? w4b.g : ((i==6) ? w4b.b : w4b.a)));
+    w *= u_on[i];
+    w *= edgeFade;
+    if(w > 0.004){
+      vec2 dir; float ph;
+      if(u_mode[i] > 3.5){ // たゆん: 方向設定は「ゆれる」と同じ（楕円は下で作る）
+        dir = vec2(u_dirx[i], u_diry[i]);
+        vec2 tdir = vec2(-dir.y, dir.x);
+        ph = dot(p, tdir) * u_waveK[i] + u_ph0[i];
+      } else if(u_mode[i] > 2.5){ // ひねる: 重心を軸に回転（波打ちで外側が遅れてしなる）
+        vec2 rv = p - u_ctr[i];
+        ph = length(rv) * u_waveK[i] + u_ph0[i];
+        dir = vec2(0.0); // 変位は下の回転計算で出す
+      } else if(u_mode[i] > 1.5){ // つぶす: 「方向」の先の縁を支点に、軸方向へ圧縮
+        vec2 ax = vec2(u_dirx[i], u_diry[i]);
+        vec2 pv = u_ctr[i] + ax * u_ref[i];        // 支点（領域の movement 側の縁）
+        float proj = dot(p - pv, ax);
+        dir = -ax * clamp(proj/u_ref[i], -1.7, 1.7) * u_ref[i]/60.0; // 強さ60=支点まで全圧縮
+        ph = proj * u_waveK[i] + u_ph0[i];
+      } else if(u_mode[i] > 0.5){ // ふくらむ: 重心から放射状、距離に比例
+        vec2 rv = p - u_ctr[i];
+        float dLen = length(rv);
+        dir = (dLen > 0.001) ? rv/dLen * min(dLen/u_ref[i], 1.5) : vec2(0.0);
+        ph = dLen * u_waveK[i] + u_ph0[i];
+      } else {          // ゆれる: 一方向スイング＋横波
+        dir = vec2(u_dirx[i], u_diry[i]);
+        vec2 tdir = vec2(-dir.y, dir.x);
+        ph = dot(p, tdir) * u_waveK[i] + u_ph0[i];
+      }
+      float wt = TAU * u_freq[i] * u_t;
+      float m = 1.0 + u_noise[i]*(0.6*sin(TAU*u_nf1[i]*u_t + 1.7) + 0.4*sin(TAU*u_nf2[i]*u_t + 4.2));
+      float s;
+      if(u_curve[i] > 1.5){        // キープ: なめらかに 0→1→0（変形して保持して戻る）
+        float u = fract(u_freq[i]*u_t - ph/TAU);
+        float tr = clamp(u_hm[i]*0.7 + 0.06, 0.05, 0.42);
+        s = smoothstep(0.0, tr, u) * (1.0 - smoothstep(0.5, 0.5 + tr, u));
+      } else if(u_curve[i] > 0.5){ // パルス: 普段0、周期ごとにパチッと1→0（まばたき）
+        float u = fract(u_freq[i]*u_t - ph/TAU);
+        float hw = clamp(u_hm[i]*0.45 + 0.03, 0.03, 0.32);
+        float q = clamp(1.0 - abs(u/hw - 1.0), 0.0, 1.0);
+        s = q*q*(3.0 - 2.0*q);
+      } else {                     // なみ: サイン＋倍音（従来）
+        s = sin(wt - ph) + u_hm[i]*sin(2.0*wt - 1.6*ph + 1.3);
+      }
+      vec2 disp;
+      if(u_mode[i] > 3.5){ // たゆん: 縦横で位相をずらした楕円〜8の字軌道
+        vec2 tdir = vec2(-dir.y, dir.x);
+        float a = wt - ph;
+        a -= 0.35*cos(a);                               // 重力: 下で速く抜け、上でハングする時間歪み
+        float mainc = sin(a);
+        float perp = cos(a)*0.6 + u_hm[i]*sin(2.0*a)*0.5; // 90°ずれ＝楕円、倍音＝8の字
+        disp = u_amp[i]*m*(mainc*dir + perp*tdir);
+      } else if(u_mode[i] > 2.5){ // ひねる: 角度 = 強さ(60≈±58°)×リズム。逆回転サンプリング
+        vec2 rv = p - u_ctr[i];
+        float th = u_amp[i]*0.017*m*s;
+        float cs = cos(th), sn = sin(th);
+        disp = rv - vec2(cs*rv.x + sn*rv.y, -sn*rv.x + cs*rv.y);
+      } else {
+        disp = u_amp[i]*m*s*dir;
+      }
+      off += (disp + u_spr[i]) * w;
+    }
+  }
+  vec2 uv = clamp((p - off) / u_imgSize, vec2(0.0), vec2(1.0));
+  vec4 c = texture2D(u_img, uv);
+  gl_FragColor = mix(vec4(mix(u_bg, c.rgb, c.a), 1.0), c, u_keepA);
+}`;
+
+function makeShader(type, src){
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src); gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
+    throw new Error("shader: " + gl.getShaderInfoLog(sh));
+  return sh;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, makeShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, makeShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const U = {};
+["u_rect","u_shift","u_img","u_w","u_w2","u_imgSize","u_t","u_amp","u_freq","u_dirx","u_diry",
+ "u_waveK","u_noise","u_ph0","u_hm","u_nf1","u_nf2","u_spr","u_on","u_mode","u_curve","u_ctr","u_ref",
+ "u_bg","u_keepA"]
+ .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+// クワッド (0..1)
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0, 0,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, "a_pos");
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+function makeTex(){
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  return t;
+}
+const texImg = makeTex(), texW = makeTex(), texW2 = makeTex();
+gl.clearColor(0.106, 0.114, 0.133, 1);
+
+/* ---------- 画像読み込み ---------- */
+const MAX_IMG = 2200;
+function loadImage(src, name){
+  const im = new Image();
+  im.onload = () => {
+    let w = im.naturalWidth, h = im.naturalHeight;
+    const sc = Math.min(1, MAX_IMG/Math.max(w,h));
+    w = Math.round(w*sc); h = Math.round(h*sc);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(im, 0, 0, w, h);
+    const hadPaint = state.layers.some(l => l.painted);
+    if(hadPaint && !confirm("マスク（塗り）をリセットして新しい画像を開きますか？")) return;
+    state.img = c; state.imgW = w; state.imgH = h; state.imgName = name || "image";
+    { const rb = document.getElementById("restoreBar"); if(rb) rb.remove(); asReady = true; }
+    gl.bindTexture(gl.TEXTURE_2D, texImg);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    if(state.layers.length === 0){ addLayer(); }
+    state.layers.forEach(l => initLayerCanvas(l));
+    initLayerCanvas(pinLayer);
+    analyzeImage();
+    fitView(); rebuildWeights(); updateUI();
+    $("#drophint").style.display = "none";
+    $("#imgInfo").textContent = `${name||""} ${w}×${h}`;
+    if(sc < 1) $("#imgInfo").textContent += "（縮小）";
+  };
+  im.onerror = () => alert("画像を読み込めませんでした");
+  im.src = src;
+}
+function initLayerCanvas(l){
+  l.canvas = document.createElement("canvas");
+  l.canvas.width = state.imgW; l.canvas.height = state.imgH;
+  l.ctx = l.canvas.getContext("2d", {willReadFrequently:true});
+  l.painted = false; l.undo = []; l.redo = []; l.wArr = null;
+  l.sp = {x:0, y:0, vx:0, vy:0};
+}
+$("#btnOpen").onclick = () => $("#file").click();
+$("#file").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => loadImage(r.result, f.name);
+  r.readAsDataURL(f);
+  e.target.value = "";
+};
+stage.addEventListener("dragover", e => { e.preventDefault(); stage.classList.add("drag"); });
+stage.addEventListener("dragleave", () => stage.classList.remove("drag"));
+stage.addEventListener("drop", e => {
+  e.preventDefault(); stage.classList.remove("drag");
+  const f = [...e.dataTransfer.files].find(f => f.type.startsWith("image/"));
+  if(f){ const r = new FileReader(); r.onload = () => loadImage(r.result, f.name); r.readAsDataURL(f); }
+});
+window.addEventListener("paste", e => {
+  const it = [...(e.clipboardData?.items||[])].find(i => i.type.startsWith("image/"));
+  if(it){ const f = it.getAsFile(); const r = new FileReader();
+    r.onload = () => loadImage(r.result, "clipboard"); r.readAsDataURL(f); }
+});
+
+/* ---------- ビュー ---------- */
+let lastStage = {w:0, h:0};
+function resizeCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  const W = stage.clientWidth, H = stage.clientHeight;
+  glcv.width = Math.round(W*dpr); glcv.height = Math.round(H*dpr);
+  ovcv.width = glcv.width; ovcv.height = glcv.height;
+  lastStage = {w:W, h:H};
+  return {W, H};
+}
+function fitView(){
+  const {W, H} = resizeCanvas();
+  if(!state.img) return;
+  const pad = 20;
+  const sc = Math.min((W-pad*2)/state.imgW, (H-pad*2)/state.imgH);
+  const vw = state.imgW*sc, vh = state.imgH*sc;
+  state.view = {x:(W-vw)/2, y:(H-vh)/2, w:vw, h:vh, scale:sc, fit:sc};
+}
+// リサイズ: 画面中心の画像点とfit比のズームを保持したまま追従
+function onResize(){
+  if(!state.img){ resizeCanvas(); return; }
+  const v = state.view, ow = lastStage.w || stage.clientWidth, oh = lastStage.h || stage.clientHeight;
+  const cx = (ow/2 - v.x)/v.scale, cy = (oh/2 - v.y)/v.scale; // 旧・画面中心の画像座標
+  const ratio = v.fit ? v.scale/v.fit : 1;                    // fitに対する拡大率
+  const {W, H} = resizeCanvas();
+  const pad = 20;
+  const fit = Math.min((W-pad*2)/state.imgW, (H-pad*2)/state.imgH);
+  const sc = fit*ratio;
+  state.view = {x:W/2 - cx*sc, y:H/2 - cy*sc, w:state.imgW*sc, h:state.imgH*sc, scale:sc, fit};
+}
+window.addEventListener("resize", onResize);
+function toImg(ex, ey){ // stage要素座標 → 画像px
+  const v = state.view;
+  return {x:(ex - v.x)/v.scale, y:(ey - v.y)/v.scale};
+}
+// ホイールでズーム（カーソル中心）
+stage.addEventListener("wheel", e => {
+  if(!state.img) return;
+  e.preventDefault();
+  const r = stage.getBoundingClientRect();
+  const ex = e.clientX-r.left, ey = e.clientY-r.top;
+  const v = state.view;
+  const ns = clamp(v.scale * (e.deltaY < 0 ? 1.12 : 1/1.12), v.fit*0.2, v.fit*24);
+  const f = ns/v.scale;
+  if(Math.abs(f-1) < 1e-6) return;
+  v.scale = ns; v.w *= f; v.h *= f;
+  v.x = ex - (ex - v.x)*f;
+  v.y = ey - (ey - v.y)*f;
+}, {passive:false});
+
+/* ---------- 重みテクスチャ（ぼかしマスク） ---------- */
+const wTmp = document.createElement("canvas");
+const wCtx = wTmp.getContext("2d", {willReadFrequently:true});
+let wW = 1, wH = 1;
+function boxBlur(a, w, h, r){
+  if(r < 1) return a;
+  const tmp = new Float32Array(a.length);
+  const norm = 1/(2*r+1);
+  for(let pass=0; pass<3; pass++){
+    for(let y=0; y<h; y++){ // horizontal
+      const o = y*w; let s = 0;
+      for(let x=-r; x<=r; x++) s += a[o + clamp(x,0,w-1)];
+      for(let x=0; x<w; x++){
+        tmp[o+x] = s*norm;
+        s += a[o + clamp(x+r+1,0,w-1)] - a[o + clamp(x-r,0,w-1)];
+      }
+    }
+    for(let x=0; x<w; x++){ // vertical
+      let s = 0;
+      for(let y=-r; y<=r; y++) s += tmp[clamp(y,0,h-1)*w + x];
+      for(let y=0; y<h; y++){
+        a[y*w+x] = s*norm;
+        s += tmp[clamp(y+r+1,0,h-1)*w + x] - tmp[clamp(y-r,0,h-1)*w + x];
+      }
+    }
+  }
+  return a;
+}
+function maskToArr(l){ // マスク縮小→α配列（描き途中のプレビュー込み）
+  wCtx.clearRect(0, 0, wW, wH);
+  wCtx.drawImage(l.canvas, 0, 0, wW, wH);
+  if(stroke && stroke.layer === l && stroke.pts.length){
+    paintStroke(wCtx, 0, 0, wW/state.imgW);
+  }
+  const d = wCtx.getImageData(0, 0, wW, wH).data;
+  const a = new Float32Array(wW*wH);
+  for(let k=0; k<a.length; k++) a[k] = d[k*4+3];
+  return a;
+}
+function rebuildWeights(){
+  if(!state.img) return;
+  const sc = Math.min(1, 512/Math.max(state.imgW, state.imgH));
+  wW = Math.max(1, Math.round(state.imgW*sc));
+  wH = Math.max(1, Math.round(state.imgH*sc));
+  wTmp.width = wW; wTmp.height = wH;
+  const rgbaA = new Uint8Array(wW*wH*4);
+  const rgbaB = new Uint8Array(wW*wH*4);
+  const r = Math.max(1, Math.round(EDGE_SOFT * sc));
+  // 📌固定マスク: 塗った所は全レイヤーの重みを削る
+  let pinA = null;
+  if(pinLayer.canvas && (pinLayer.painted || (stroke && stroke.layer === pinLayer))){
+    pinA = boxBlur(maskToArr(pinLayer), wW, wH, r);
+  }
+  state.layers.forEach((l, i) => {
+    const a = boxBlur(maskToArr(l), wW, wH, r);
+    if(pinA) for(let k=0; k<a.length; k++) a[k] *= 1 - Math.min(pinA[k], 255)/255;
+    l.wArr = a;
+    const rgba = i < 4 ? rgbaA : rgbaB, ch = i & 3;
+    // 重心と基準半径（「ふくらむ」モード用）
+    let sw = 0, sx = 0, sy = 0, area = 0;
+    for(let k=0; k<a.length; k++){
+      const v = a[k];
+      if(v > 8){ sw += v; sx += v*(k%wW); sy += v*((k/wW)|0); area += v/255; }
+      rgba[k*4+ch] = clamp(Math.round(v), 0, 255);
+    }
+    const toImg = state.imgW/wW;
+    if(sw > 0){
+      l.ctr = {x: sx/sw*toImg, y: sy/sw*toImg};
+      l.ref = Math.max(20, Math.sqrt(area/Math.PI)*toImg);
+    } else {
+      l.ctr = {x: state.imgW/2, y: state.imgH/2};
+      l.ref = Math.min(state.imgW, state.imgH)/4;
+    }
+  });
+  gl.bindTexture(gl.TEXTURE_2D, texW);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wW, wH, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaA);
+  gl.bindTexture(gl.TEXTURE_2D, texW2);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wW, wH, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaB);
+  autosaveSoon();
+}
+let wDirty = false, wLast = 0;
+function weightsSoon(){ wDirty = true; }
+function weightTick(now){
+  if(wDirty && now - wLast > 120){ wDirty = false; wLast = now; rebuildWeights(); }
+}
+function weightAt(l, ix, iy){
+  if(!l.wArr) return 0;
+  const x = clamp(Math.round(ix*wW/state.imgW), 0, wW-1);
+  const y = clamp(Math.round(iy*wH/state.imgH), 0, wH-1);
+  return l.wArr[y*wW+x]/255;
+}
+
+/* ---------- 画像解析（ワンド・エッジスナップ用） ---------- */
+let imgPx = null;    // 画像のRGBA（画像解像度）
+let edgeMap = null;  // Sobel勾配強度 0..255
+function analyzeImage(){
+  imgPx = null; edgeMap = null;
+  if(!state.img) return;
+  const w = state.imgW, h = state.imgH;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const cx = c.getContext("2d", {willReadFrequently:true});
+  cx.drawImage(state.img, 0, 0);
+  imgPx = cx.getImageData(0, 0, w, h).data;
+  // 輝度(透明は0扱い→透明との境界もエッジになる) → Sobel
+  const lum = new Float32Array(w*h);
+  for(let i=0, k=0; i<lum.length; i++, k+=4){
+    lum[i] = (imgPx[k]*0.299 + imgPx[k+1]*0.587 + imgPx[k+2]*0.114) * imgPx[k+3]/255;
+  }
+  edgeMap = new Uint8Array(w*h);
+  for(let y=1; y<h-1; y++){
+    const o = y*w;
+    for(let x=1; x<w-1; x++){
+      const i = o+x;
+      const gx = -lum[i-w-1] - 2*lum[i-1] - lum[i+w-1] + lum[i-w+1] + 2*lum[i+1] + lum[i+w+1];
+      const gy = -lum[i-w-1] - 2*lum[i-w] - lum[i-w+1] + lum[i+w-1] + 2*lum[i+w] + lum[i+w+1];
+      const g = Math.sqrt(gx*gx + gy*gy) * 0.25;
+      edgeMap[i] = g > 255 ? 255 : g;
+    }
+  }
+}
+
+/* ---------- ワンド（近い色のつながった範囲を一発選択） ---------- */
+function wandFill(ix, iy, erase){
+  const l = curTarget();
+  if(!imgPx || !l || !state.img) return;
+  const w = state.imgW, h = state.imgH;
+  const x0 = clamp(Math.round(ix), 0, w-1), y0 = clamp(Math.round(iy), 0, h-1);
+  const k0 = (y0*w + x0)*4;
+  const r0 = imgPx[k0], g0 = imgPx[k0+1], b0 = imgPx[k0+2], a0 = imgPx[k0+3];
+  const tol = state.wandTol*state.wandTol*3.2;
+  const seen = new Uint8Array(w*h);
+  const stack = [y0*w + x0];
+  seen[y0*w + x0] = 1;
+  const sel = [];
+  let mnx = x0, mxx = x0, mny = y0, mxy = y0;
+  while(stack.length){
+    const q = stack.pop();
+    sel.push(q);
+    const qx = q%w, qy = (q/w)|0;
+    if(qx < mnx) mnx = qx; if(qx > mxx) mxx = qx;
+    if(qy < mny) mny = qy; if(qy > mxy) mxy = qy;
+    for(let d=0; d<4; d++){
+      const nx = qx + (d===0 ? 1 : d===1 ? -1 : 0);
+      const ny = qy + (d===2 ? 1 : d===3 ? -1 : 0);
+      if(nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const n = ny*w + nx;
+      if(seen[n]) continue;
+      seen[n] = 1;
+      const k = n*4;
+      const dr = imgPx[k]-r0, dg = imgPx[k+1]-g0, db = imgPx[k+2]-b0, da = imgPx[k+3]-a0;
+      if(dr*dr + dg*dg*1.6 + db*db + da*da*2 <= tol) stack.push(n);
+    }
+  }
+  // マスクへ反映（Undo対応・影響度で塗る／erase=消す）
+  const bw = mxx-mnx+1, bh = mxy-mny+1;
+  l.undo.push({x:mnx, y:mny, data: l.ctx.getImageData(mnx, mny, bw, bh)});
+  if(l.undo.length > 25) l.undo.shift();
+  l.redo = [];
+  const dest = l.ctx.getImageData(mnx, mny, bw, bh);
+  const dd = dest.data;
+  const target = erase ? 0 : clamp(Math.round(state.brushOp/100*255), 0, 255);
+  for(const q of sel){
+    const di = (((q/w)|0) - mny)*bw + (q%w - mnx);
+    dd[di*4] = 255; dd[di*4+1] = 255; dd[di*4+2] = 255; dd[di*4+3] = target;
+  }
+  l.ctx.putImageData(dest, mnx, mny);
+  l.painted = true;
+  rebuildWeights();
+}
+
+/* ---------- レイヤーUI ---------- */
+function addLayer(){
+  if(state.layers.length >= MAXL) return;
+  const l = newLayer(state.layers.length);
+  // 追加レイヤーは位相を少しずらして「連動して遅れる」動きに
+  l.p.ph = (state.layers.length*60) % 360;
+  state.layers.push(l);
+  if(state.img) initLayerCanvas(l);
+  state.active = state.layers.length-1;
+  state.paintPin = false;
+  updateUI();
+}
+function removeLayer(i){
+  if(state.layers.length <= 1) return;
+  if(state.layers[i].painted && !confirm(state.layers[i].name+" を削除しますか？")) return;
+  state.layers.splice(i, 1);
+  state.layers.forEach((l, k) => {
+    if(!l.customColor) l.color = LCOLORS[k]; // 手動で色を変えた領域はそのまま保持
+    if(/^領域\d+$/.test(l.name)) l.name = "領域"+(k+1); // 手動命名は保持
+  });
+  state.active = clamp(state.active, 0, state.layers.length-1);
+  rebuildWeights(); updateUI();
+}
+$("#btnAddLayer").onclick = addLayer;
+function renderLayerTabs(){
+  const box = $("#layers"); box.innerHTML = "";
+  state.layers.forEach((l, i) => {
+    const el = document.createElement("div");
+    el.className = "ltab" + (i === state.active && !state.paintPin ? " act" : "");
+    el.innerHTML = `<span class="dot" style="background:${l.color}" title="クリックで領域の色を変更"><input type="color" class="colorInp" value="${l.color}"></span>`
+      + `<span class="nm">${l.name}</span>`
+      + `<span class="disp${l.show ? "" : " off"}" title="塗りの表示 ON/OFF（動作には影響しません）">👁</span>`
+      + `<span class="eye${l.on ? "" : " off"}" title="揺れの動作 ON/OFF">🌀</span>`
+      + (state.layers.length > 1 ? `<span class="del" title="削除">×</span>` : "");
+    el.onclick = e => {
+      // どこをクリックしても選択は切り替える（アイコンだけ押して選択されない事故を防ぐ）
+      if(e.target.classList.contains("del")){ removeLayer(i); return; }
+      state.active = i; state.paintPin = false;
+      if(e.target.classList.contains("eye")) l.on = !l.on;
+      if(e.target.classList.contains("disp")) l.show = !l.show;
+      updateUI();
+    };
+    el.querySelector(".colorInp").oninput = e => {
+      l.color = e.target.value; l.customColor = true;
+      e.target.parentElement.style.background = l.color;
+    };
+    el.querySelector(".colorInp").onchange = () => { saveLS(); };
+    el.ondblclick = e => {
+      if(!e.target.classList.contains("nm")) return;
+      const nm = prompt("領域の名前", l.name);
+      if(nm && nm.trim()){ l.name = nm.trim().slice(0, 12); updateUI(); }
+    };
+    el.title = "ダブルクリックで名前変更";
+    box.appendChild(el);
+  });
+  // 📌固定タブ: ここに塗ると全レイヤーの揺れを抑える（根元の固定に）
+  const pe = document.createElement("div");
+  pe.className = "ltab pin" + (state.paintPin ? " act" : "");
+  pe.innerHTML = `<span class="dot" style="background:${pinLayer.color}"></span><span>📌固定</span>`
+    + `<span class="disp${pinLayer.show ? "" : " off"}" title="塗りの表示 ON/OFF">👁</span>`;
+  pe.title = "塗った所は揺れなくなる（髪の根元などに）";
+  pe.onclick = e => {
+    if(e.target.classList.contains("disp")){ pinLayer.show = !pinLayer.show; updateUI(); return; }
+    state.paintPin = true; updateUI();
+  };
+  box.appendChild(pe);
+  $("#btnAddLayer").style.display = state.layers.length >= MAXL ? "none" : "";
+  const anyShown = state.layers.some(l => l.show) || pinLayer.show;
+  $("#btnShowAll").classList.toggle("on", anyShown);
+}
+$("#btnShowAll").onclick = () => {
+  // 1つでも表示中なら全OFF、全部OFFなら全ON（📌固定も含む）
+  const next = !(state.layers.some(l => l.show) || pinLayer.show);
+  state.layers.forEach(l => l.show = next);
+  pinLayer.show = next;
+  updateUI();
+};
+
+/* ---------- パラメータUI ---------- */
+const PDEFS = [
+  ["amp",   "強さ",     0,   60,  1,   v => v+"px"],
+  ["freq",  "速さ",     0.1, 4,   0.05,v => v.toFixed(2)+"Hz"],
+  ["ang",   "方向",     0,   360, 5,   v => v+"°"],
+  ["wave",  "波打ち",   0,   60,  1,   v => v],
+  ["noise", "ゆらぎ",   0,   100, 1,   v => v],
+  ["hm",    "しなり",   0,   60,  1,   v => v],
+  ["ph",    "タイミング",0,  360, 5,   v => v+"°"],
+  ["damp",  "減衰",     0,   100, 1,   v => v],
+];
+const PTITLE = {
+  amp:  "揺れの大きさ（変位のピーク）",
+  freq: "揺れの速さ（1秒あたりの往復数）",
+  ang:  "揺れる向き。ふくらむ/ひねるでは無効",
+  wave: "領域を横切る位相のずれ。上げると波打つ・しなる",
+  noise:"周期をゆらして不規則に。生っぽさが出る",
+  hm:   "なみ→しなり(むち)／たゆん→8の字の強さ",
+  ph:   "開始タイミングの位相。複数レイヤーをずらす時用",
+  damp: "触った揺れの収まりの速さ。0=長く尾を引く",
+};
+function buildParamUI(){
+  const box = $("#params"); box.innerHTML = "";
+  PDEFS.forEach(([key, label, min, max, step, fmt]) => {
+    const d = document.createElement("div"); d.className = "sl"; d.title = PTITLE[key] || "";
+    d.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}"><span class="v"></span>`;
+    const inp = d.querySelector("input"), val = d.querySelector(".v");
+    inp.oninput = () => {
+      const l = state.layers[state.active]; if(!l) return;
+      l.p[key] = parseFloat(inp.value);
+      val.textContent = fmt(l.p[key]);
+      $("#presetSel").value = ""; // 手で調整したらプリセット選択は解除
+      $("#presetDesc").textContent = "";
+      $("#btnApplyPreset").disabled = true;
+      saveLS();
+    };
+    d.dataset.key = key; d.dataset.fmt = "1";
+    box.appendChild(d);
+    d._sync = () => {
+      const l = state.layers[state.active]; if(!l) return;
+      inp.value = l.p[key]; val.textContent = fmt(l.p[key]);
+    };
+  });
+}
+buildParamUI();
+function syncMotionUI(){
+  const l = state.layers[state.active]; if(!l) return;
+  const m = l.p.mode || 0, c = l.p.curve || 0;
+  for(let i=0; i<5; i++) $("#mode"+i).classList.toggle("on", m === i);
+  for(let i=0; i<3; i++) $("#curve"+i).classList.toggle("on", c === i);
+  updateParamMeta();
+}
+// 変形・リズムに応じて、意味のないスライダーを隠しラベルを変える
+function updateParamMeta(){
+  const l = state.layers[state.active]; if(!l) return;
+  const m = l.p.mode || 0, c = l.p.curve || 0;
+  [...$("#params").children].forEach(d => {
+    const k = d.dataset.key;
+    let show = true, label = null;
+    if(k === "ang"){
+      show = (m === 0 || m === 2 || m === 4);          // ふくらむ・ひねるに方向は無い
+      label = m === 2 ? "つぶす向き" : "方向";
+    } else if(k === "wave"){
+      label = (m === 1 || m === 3) ? "うねり" : "波打ち"; // 放射・回転では位相の遅れ
+    } else if(k === "hm"){
+      label = m === 4 ? "8の字" : (c === 0 ? "しなり" : (c === 1 ? "動作の長さ" : "切替の速さ"));
+    } else if(k === "freq"){
+      label = c === 0 ? "速さ" : "頻度";
+    }
+    d.style.display = show ? "" : "none";
+    if(label) d.querySelector("label").textContent = label;
+  });
+}
+function setMotionMode(m){
+  const l = state.layers[state.active]; if(!l) return;
+  l.p.mode = m; syncMotionUI(); saveLS();
+}
+function setMotionCurve(c){
+  const l = state.layers[state.active]; if(!l) return;
+  l.p.curve = c; syncMotionUI(); saveLS();
+}
+for(let i=0; i<5; i++) $("#mode"+i).onclick = () => setMotionMode(i);
+for(let i=0; i<3; i++) $("#curve"+i).onclick = () => setMotionCurve(i);
+function syncParamUI(){
+  [...$("#params").children].forEach(d => d._sync && d._sync());
+  syncMotionUI();
+  // 今どの領域を編集しているか常に見出しに出す
+  const l = state.layers[state.active];
+  $("#paramHead").textContent = l ? `揺れ設定（${l.name}）` : "揺れ設定";
+}
+$("#presetSel").onchange = e => {
+  const p = e.target.value;
+  $("#presetDesc").textContent = PRESET_INFO[p] || "";
+  $("#btnApplyPreset").disabled = !p;
+};
+$("#btnApplyPreset").onclick = () => {
+  const p = $("#presetSel").value; if(!p || !PRESETS[p]) return;
+  const l = state.layers[state.active]; if(!l) return;
+  const keep = l.p.ph;
+  l.p = Object.assign({}, PRESETS[p], {ph: keep});
+  syncParamUI(); saveLS();
+};
+
+/* ---------- モード/共通UI ---------- */
+function syncAutoUI(){
+  const on = state.autoPlay[state.mode];
+  $("#btnAuto").classList.toggle("on", on);
+  $("#btnAuto").textContent = on ? "🌀 自動ゆれ" : "⏸ 自動ゆれ 停止中";
+}
+function setMode(m){
+  state.mode = m;
+  $("#mPaint").classList.toggle("on", m === "paint");
+  $("#mPlay").classList.toggle("on", m === "play");
+  $("#brushBox").style.opacity = m === "paint" ? 1 : 0.45;
+  $("#modeHint").textContent = m === "paint"
+    ? "左ドラッグ＝塗る／右ドラッグ＝消す。じっくり塗る時は自動ゆれを止めると楽。"
+    : "塗った所をドラッグ＝つつく／背景ドラッグ＝シェイク。収まり方は「減衰」で調整。";
+  hit.style.cursor = m === "paint" ? "crosshair" : "grab";
+  $("#playOpts").style.display = m === "play" ? "" : "none";
+  syncAutoUI();
+}
+$("#mPaint").onclick = () => setMode("paint");
+$("#mPlay").onclick = () => setMode("play");
+setMode("paint");
+$("#btnAuto").onclick = () => {
+  state.autoPlay[state.mode] = !state.autoPlay[state.mode];
+  syncAutoUI();
+};
+function setTool(t){
+  // 今のツールの設定を控えてから切替（ブラシと消しゴムは太さ・強さを別々に記憶）
+  const cfg = state.toolCfg;
+  if(cfg[state.tool]){ cfg[state.tool].size = state.brushSize; cfg[state.tool].op = state.brushOp; }
+  state.tool = t;
+  if(cfg[t]){
+    state.brushSize = cfg[t].size;
+    $("#brSize").value = state.brushSize; $("#brSizeV").textContent = state.brushSize;
+    setBrushOp(cfg[t].op);
+    $("#brSizeLabel").textContent = t === "brush" ? "ブラシ" : "消しゴム";
+  }
+  $("#toolBrush").classList.toggle("on", t === "brush");
+  $("#toolWand").classList.toggle("on", t === "wand");
+  $("#toolErase").classList.toggle("on", t === "eraser");
+  $("#sizeRow").style.display = t === "wand" ? "none" : "";
+  $("#brushOpts").style.display = t === "brush" ? "" : "none";
+  $("#wandOpts").style.display = t === "wand" ? "" : "none";
+  saveLS();
+}
+$("#toolBrush").onclick = () => setTool("brush");
+$("#toolWand").onclick = () => setTool("wand");
+$("#toolErase").onclick = () => setTool("eraser");
+$("#wandTol").oninput = e => { state.wandTol = +e.target.value; $("#wandTolV").textContent = state.wandTol; };
+$("#wandTolV").textContent = state.wandTol;
+$("#btnSnap").onclick = () => {
+  state.edgeSnap = !state.edgeSnap;
+  $("#btnSnap").classList.toggle("on", state.edgeSnap);
+  $("#snapRow").style.display = state.edgeSnap ? "" : "none";
+  saveLS();
+};
+$("#snapTh").oninput = e => { state.snapTh = +e.target.value; $("#snapThV").textContent = state.snapTh; saveLS(); };
+$("#snapThV").textContent = state.snapTh;
+$("#brSize").oninput = e => { state.brushSize = +e.target.value; $("#brSizeV").textContent = state.brushSize; };
+$("#brSizeV").textContent = state.brushSize;
+const BRUSH_OP_STEPS = [20, 40, 60, 80, 100];
+function setBrushOp(v){
+  v = BRUSH_OP_STEPS.reduce((a, b) => Math.abs(b-v) < Math.abs(a-v) ? b : a);
+  state.brushOp = v;
+  document.querySelectorAll("#brOpGroup .opBtn").forEach(b => b.classList.toggle("on", +b.dataset.op === v));
+  saveLS();
+}
+document.querySelectorAll("#brOpGroup .opBtn").forEach(b => b.onclick = () => setBrushOp(+b.dataset.op));
+setBrushOp(state.brushOp);
+function updateUI(){ renderLayerTabs(); syncParamUI(); updateLoopInfo(); }
+
+/* ---------- ブラシ描画 & Undo ---------- */
+const preStroke = document.createElement("canvas");
+const preCtx = preStroke.getContext("2d", {willReadFrequently:true});
+// ストロークバッファ: 1ストロークを毎回描き直すことで
+// 自己交差・連続描画でも濃度が加算されず、縁のぼかしが保たれる
+const sBuf = document.createElement("canvas");
+const sCtx = sBuf.getContext("2d");
+const SOFT = [[1,0.22],[0.88,0.25],[0.76,0.30],[0.62,0.38],[0.50,0.55],[0.40,1]];
+let stroke = null; // {layer, bbox, erase, pts, r}
+function beginStroke(l, erase){
+  preStroke.width = state.imgW; preStroke.height = state.imgH;
+  preCtx.clearRect(0, 0, state.imgW, state.imgH);
+  preCtx.drawImage(l.canvas, 0, 0);
+  sBuf.width = state.imgW; sBuf.height = state.imgH;
+  stroke = {layer:l, bbox:null, erase, pts:[], r: state.brushSize/2, op: state.brushOp/100,
+            snap: state.edgeSnap && !erase && !!edgeMap};
+}
+// 新しい影響度で上書き: ブラシの強さ(ソフトエッジ)ぶんだけ「前の値」と「今の影響度」を
+// なめらかに混ぜる（ブレンド演算だけだと縁で誤差が出て段差になるので、bbox範囲だけ
+// ピクセル単位で正確な線形補間をする）
+const mixCv = document.createElement("canvas");
+const mixCtx = mixCv.getContext("2d", {willReadFrequently:true});
+function paintStroke(ctx, ox, oy, sc){
+  if(stroke.erase){
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.globalAlpha = stroke.op;
+    ctx.drawImage(sBuf, ox, oy, sBuf.width*sc, sBuf.height*sc);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    return;
+  }
+  const b = stroke.bbox; if(!b) return;
+  const bx0 = clamp(b.x0, 0, state.imgW), by0 = clamp(b.y0, 0, state.imgH);
+  const bx1 = clamp(b.x1, 0, state.imgW), by1 = clamp(b.y1, 0, state.imgH);
+  const bw = bx1-bx0, bh = by1-by0;
+  if(bw <= 0 || bh <= 0) return;
+  const x = Math.floor(ox + bx0*sc), y = Math.floor(oy + by0*sc);
+  const w = Math.max(1, Math.ceil(bw*sc)), h = Math.max(1, Math.ceil(bh*sc));
+  mixCv.width = w; mixCv.height = h;
+  mixCtx.clearRect(0, 0, w, h);
+  mixCtx.drawImage(sBuf, bx0, by0, bw, bh, 0, 0, w, h);
+  const mArr = mixCtx.getImageData(0, 0, w, h).data;
+  let dest;
+  try{ dest = ctx.getImageData(x, y, w, h); }catch(e){ return; }
+  const dd = dest.data;
+  const target = clamp(Math.round(stroke.op*255), 0, 255);
+  for(let i=0, n=dd.length; i<n; i+=4){
+    const mv = mArr[i+3];
+    if(mv === 0) continue;
+    const mf = mv/255;
+    dd[i]=255; dd[i+1]=255; dd[i+2]=255;
+    dd[i+3] = Math.round(dd[i+3]*(1-mf) + target*mf);
+  }
+  ctx.putImageData(dest, x, y);
+}
+function bboxAdd(x, y, r){
+  const b = stroke.bbox;
+  const x0 = Math.floor(x-r), y0 = Math.floor(y-r), x1 = Math.ceil(x+r), y1 = Math.ceil(y+r);
+  if(!b) stroke.bbox = {x0, y0, x1, y1};
+  else { b.x0 = Math.min(b.x0,x0); b.y0 = Math.min(b.y0,y0); b.x1 = Math.max(b.x1,x1); b.y1 = Math.max(b.y1,y1); }
+}
+function redrawStrokeBuf(){
+  const {pts, r} = stroke;
+  sCtx.clearRect(0, 0, sBuf.width, sBuf.height);
+  sCtx.lineCap = sCtx.lineJoin = "round";
+  sCtx.strokeStyle = sCtx.fillStyle = "#fff";
+  for(const [f, a] of SOFT){
+    sCtx.globalAlpha = a;
+    if(pts.length === 1){
+      sCtx.beginPath();
+      sCtx.arc(pts[0].x, pts[0].y, Math.max(0.5, r*f), 0, TAU);
+      sCtx.fill();
+    } else {
+      sCtx.lineWidth = Math.max(1, r*2*f);
+      sCtx.beginPath();
+      sCtx.moveTo(pts[0].x, pts[0].y);
+      for(let i=1; i<pts.length; i++) sCtx.lineTo(pts[i].x, pts[i].y);
+      sCtx.stroke();
+    }
+  }
+  sCtx.globalAlpha = 1;
+}
+// エッジスナップ用スタンプ: 中心からBFSで広がり、輪郭（勾配の強い所）で止まる
+function snapStamp(cx, cy){
+  const w = state.imgW, h = state.imgH, r = stroke.r;
+  const x0 = clamp(Math.floor(cx-r), 0, w-1), y0 = clamp(Math.floor(cy-r), 0, h-1);
+  const x1 = clamp(Math.ceil(cx+r), 0, w-1), y1 = clamp(Math.ceil(cy+r), 0, h-1);
+  const bw = x1-x0+1, bh = y1-y0+1;
+  if(bw <= 0 || bh <= 0) return;
+  const th = 8 + state.snapTh*2.1;
+  const seen = new Uint8Array(bw*bh);
+  const queue = new Int32Array(bw*bh);
+  let qh = 0, qt = 0;
+  const sx = clamp(Math.round(cx), x0, x1)-x0, sy = clamp(Math.round(cy), y0, y1)-y0;
+  queue[qt++] = sy*bw + sx; seen[sy*bw + sx] = 1;
+  const img = sCtx.getImageData(x0, y0, bw, bh);
+  const dd = img.data;
+  const rr = r*r;
+  while(qh < qt){
+    const q = queue[qh++];
+    const lx = q%bw, ly = (q/bw)|0;
+    const dx = lx+x0-cx, dy = ly+y0-cy;
+    const d2 = dx*dx + dy*dy;
+    if(d2 > rr) continue;
+    const f0 = 1 - Math.sqrt(d2)/r;
+    const f = f0 > 0.35 ? 1 : f0/0.35;
+    const a = Math.round(f*f*(3-2*f)*255);
+    const di = q*4;
+    dd[di] = 255; dd[di+1] = 255; dd[di+2] = 255;
+    if(a > dd[di+3]) dd[di+3] = a;
+    for(let d4=0; d4<4; d4++){
+      const nx = lx + (d4===0 ? 1 : d4===1 ? -1 : 0);
+      const ny = ly + (d4===2 ? 1 : d4===3 ? -1 : 0);
+      if(nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue;
+      const n = ny*bw + nx;
+      if(seen[n]) continue;
+      seen[n] = 1;
+      if(edgeMap[(ny+y0)*w + nx+x0] > th) continue; // エッジ＝壁
+      queue[qt++] = n;
+    }
+  }
+  sCtx.putImageData(img, x0, y0);
+}
+function strokeTo(x, y){
+  const pts = stroke.pts;
+  const last = pts[pts.length-1];
+  if(last && Math.hypot(x-last.x, y-last.y) < 2) return;
+  pts.push({x, y});
+  bboxAdd(x, y, stroke.r+1);
+  if(stroke.snap){
+    if(last){ // 前回点から補間しつつスタンプ
+      const dist = Math.hypot(x-last.x, y-last.y);
+      const step = Math.max(2, stroke.r*0.4);
+      for(let d=step; d<dist; d+=step) snapStamp(last.x+(x-last.x)*d/dist, last.y+(y-last.y)*d/dist);
+    }
+    snapStamp(x, y);
+  } else {
+    redrawStrokeBuf();
+  }
+  stroke.layer.painted = true;
+  weightsSoon();
+}
+function endStroke(){
+  if(!stroke) return;
+  const {layer:l, bbox} = stroke;
+  if(stroke.pts.length){
+    paintStroke(l.ctx, 0, 0, 1);   // 影響度＝不透明度＝揺れの強さ（なぞり直すと上書き）
+  }
+  if(bbox){
+    const x = clamp(bbox.x0, 0, state.imgW-1), y = clamp(bbox.y0, 0, state.imgH-1);
+    const w = clamp(bbox.x1, 1, state.imgW) - x, h = clamp(bbox.y1, 1, state.imgH) - y;
+    if(w > 0 && h > 0){
+      l.undo.push({x, y, data: preCtx.getImageData(x, y, w, h)});
+      if(l.undo.length > 25) l.undo.shift();
+      l.redo = [];
+    }
+  }
+  stroke = null;
+  rebuildWeights();
+}
+function applySnap(l, snap, toStack){
+  const cur = l.ctx.getImageData(snap.x, snap.y, snap.data.width, snap.data.height);
+  toStack.push({x:snap.x, y:snap.y, data:cur});
+  l.ctx.putImageData(snap.data, snap.x, snap.y);
+  l.painted = true;
+  rebuildWeights();
+}
+function curTarget(){ // 塗り・Undoの対象（レイヤー or 📌固定）
+  return state.paintPin ? pinLayer : state.layers[state.active];
+}
+function doUndo(){
+  const l = curTarget(); if(!l || !l.undo.length) return;
+  applySnap(l, l.undo.pop(), l.redo);
+}
+function doRedo(){
+  const l = curTarget(); if(!l || !l.redo.length) return;
+  applySnap(l, l.redo.pop(), l.undo);
+}
+$("#btnUndo").onclick = doUndo;
+$("#btnRedo").onclick = doRedo;
+$("#btnClearMask").onclick = () => {
+  const l = curTarget(); if(!l || !state.img) return;
+  beginStroke(l, false); bboxAdd(state.imgW/2, state.imgH/2, Math.max(state.imgW, state.imgH));
+  l.ctx.clearRect(0, 0, state.imgW, state.imgH);
+  endStroke();
+};
+
+/* ---------- ポインタ操作 ---------- */
+let cursor = {x:-999, y:-999, in:false};
+let pokeTargets = null, lastPt = null, panning = null;
+
+/* ---------- マルチタッチ（ピンチズーム / 2本指タップ=Undo） ---------- */
+const activePointers = new Map();
+let gesture = null, postGestureLock = false;
+function ptPos(e){ const r = stage.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+function cancelStroke(){ if(stroke){ stroke = null; rebuildWeights(); } } // 描き途中はレイヤー未確定なので破棄でOK
+function startGesture(){
+  cancelStroke();
+  pokeTargets = null; lastPt = null;
+  state.imgOff.drag = false; panning = null;
+  gesture = { t0:performance.now(), maxMove:0, maxScaleRatio:1, maxPointers:activePointers.size };
+  rebaseGesture(); // ピンチの基準（距離・中点）をセット
+  hit.style.cursor = "default";
+}
+function rebaseGesture(){ // 指の増減時に基準を取り直す＝ズームを飛ばさない
+  if(!gesture) return;
+  gesture.maxPointers = Math.max(gesture.maxPointers, activePointers.size);
+  const pts = [...activePointers.values()];
+  const a = pts[0], b = pts[1];
+  const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+  gesture.startDist = Math.hypot(a.x-b.x, a.y-b.y) || 1;
+  gesture.startScale = state.view.scale;
+  gesture.imgMid = toImg(mx, my);
+  gesture.startMx = mx; gesture.startMy = my;
+}
+function updateGesture(){
+  if(!gesture || activePointers.size < 2) return;
+  const pts = [...activePointers.values()];
+  const a = pts[0], b = pts[1];
+  const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+  const dist = Math.hypot(a.x-b.x, a.y-b.y) || 1;
+  const v = state.view;
+  const ns = clamp(gesture.startScale * (dist/gesture.startDist), v.fit*0.2, v.fit*24);
+  v.scale = ns; v.w = state.imgW*ns; v.h = state.imgH*ns;
+  v.x = mx - gesture.imgMid.x*ns;   // ピンチ中心を指の中点に固定＝ズーム＋パン
+  v.y = my - gesture.imgMid.y*ns;
+  const mv = Math.hypot(mx-gesture.startMx, my-gesture.startMy);
+  if(mv > gesture.maxMove) gesture.maxMove = mv;
+  const sr = dist/gesture.startDist;
+  gesture.maxScaleRatio = Math.max(gesture.maxScaleRatio, sr, 1/sr);
+}
+function finishGesture(){
+  const g = gesture; gesture = null;
+  const dt = performance.now() - g.t0;
+  if(dt < 300 && g.maxMove < 12 && g.maxScaleRatio < 1.12){ // ほぼ動いてない=タップ
+    if(g.maxPointers >= 3) doRedo(); else doUndo(); // 2本=Undo / 3本=Redo
+  }
+  postGestureLock = activePointers.size > 0; // 残った指で描き始めないようロック
+  hit.style.cursor = state.mode === "paint" ? "crosshair" : "grab";
+}
+
+hit.addEventListener("pointerdown", e => {
+  if(!state.img) return;
+  hit.setPointerCapture(e.pointerId);
+  activePointers.set(e.pointerId, ptPos(e));
+  if(activePointers.size >= 2){ if(gesture) rebaseGesture(); else startGesture(); return; }
+  if(postGestureLock) return;
+  const r = stage.getBoundingClientRect();
+  const ex = e.clientX-r.left, ey = e.clientY-r.top;
+  if(e.button === 1 || e.altKey){ // 中ドラッグ / Alt+ドラッグ = パン
+    e.preventDefault(); // Chromeの中クリックオートスクロールを抑止
+    panning = {px:ex, py:ey, vx:state.view.x, vy:state.view.y};
+    hit.style.cursor = "grabbing";
+    return;
+  }
+  const ip = toImg(ex, ey);
+  if(state.mode === "paint"){
+    const l = curTarget(); if(!l) return;
+    const erase = state.tool === "eraser" || e.button === 2;
+    if(state.tool === "wand"){ wandFill(ip.x, ip.y, e.button === 2); return; }
+    beginStroke(l, erase);
+    stroke.erase = erase;
+    strokeTo(ip.x, ip.y);
+  } else {
+    pokeTargets = state.layers.filter(l => l.on && weightAt(l, ip.x, ip.y) > 0.12);
+    lastPt = ip;
+    if(pokeTargets.length === 0){
+      state.imgOff.drag = true;
+      state.imgOff.px = ex; state.imgOff.py = ey;
+      hit.style.cursor = "grabbing";
+    } else {
+      pokeTargets.forEach(l => { const w = weightAt(l, ip.x, ip.y); l.sp.vy += 65*Math.max(w, 0.2); }); // タップ単発インパルス
+      hit.style.cursor = "pointer";
+    }
+  }
+});
+hit.addEventListener("pointermove", e => {
+  if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, ptPos(e));
+  if(gesture){ updateGesture(); return; }
+  if(postGestureLock) return;
+  const r = stage.getBoundingClientRect();
+  const ex = e.clientX-r.left, ey = e.clientY-r.top;
+  cursor = {x:ex, y:ey, in:true};
+  if(!state.img) return;
+  if(panning){
+    state.view.x = panning.vx + (ex - panning.px);
+    state.view.y = panning.vy + (ey - panning.py);
+    return;
+  }
+  const ip = toImg(ex, ey);
+  if(stroke){ strokeTo(ip.x, ip.y); return; }
+  if(pokeTargets && pokeTargets.length){
+    const dx = ip.x-lastPt.x, dy = ip.y-lastPt.y;
+    pokeTargets.forEach(l => {
+      const w = weightAt(l, ip.x, ip.y);
+      l.sp.vx += dx*6*Math.max(w, 0.2);
+      l.sp.vy += dy*6*Math.max(w, 0.2);
+    });
+    lastPt = ip;
+  } else if(state.imgOff.drag){
+    const o = state.imgOff;
+    o.x = clamp((ex-o.px)*0.95, -120, 120);
+    o.y = clamp((ey-o.py)*0.95, -120, 120);
+  } else if(state.mode !== "paint"){
+    hit.style.cursor = state.layers.some(l => l.on && weightAt(l, ip.x, ip.y) > 0.12) ? "pointer" : "grab";
+  }
+});
+function endPointer(){
+  if(stroke) endStroke();
+  pokeTargets = null;
+  if(panning){ panning = null; hit.style.cursor = state.mode === "paint" ? "crosshair" : "grab"; }
+  if(state.imgOff.drag){ state.imgOff.drag = false; hit.style.cursor = "grab"; }
+}
+function onPointerEnd(e){
+  activePointers.delete(e.pointerId);
+  if(gesture){ if(activePointers.size < 2) finishGesture(); return; }
+  if(postGestureLock){ if(activePointers.size === 0) postGestureLock = false; return; }
+  endPointer();
+}
+hit.addEventListener("pointerup", onPointerEnd);
+hit.addEventListener("pointercancel", onPointerEnd);
+hit.addEventListener("pointerleave", () => { cursor.in = false; });
+hit.addEventListener("contextmenu", e => e.preventDefault());
+
+/* ---------- 物理 ---------- */
+let prevOff = {x:0, y:0};
+let autoFade = 1; // ゆらすモード中は自動揺れ(サイン波・風)をフェードアウトして、触った揺れだけ見せる
+function physics(dt){
+  autoFade += ((state.autoPlay[state.mode] ? 1 : 0) - autoFade) * Math.min(1, dt*4);
+  // 画面シェイクの戻りバネ
+  const o = state.imgOff;
+  if(!o.drag){
+    const K = 230, C = 11;
+    o.vx += (-K*o.x - C*o.vx)*dt; o.vy += (-K*o.y - C*o.vy)*dt;
+    o.x += o.vx*dt; o.y += o.vy*dt;
+  }
+  // シェイク → 各レイヤーへ慣性で伝達（表示px→画像px換算）
+  const s = state.view.scale || 1;
+  const ddx = (o.x-prevOff.x)/s, ddy = (o.y-prevOff.y)/s;
+  prevOff = {x:o.x, y:o.y};
+  state.layers.forEach(l => {
+    l.sp.vx -= ddx*3.0; l.sp.vy -= ddy*3.0;
+    const K = 110, C = 2 + (l.p.damp ?? 30)*0.18; // 減衰: 0=長く揺れる, 100=すぐ止まる
+    l.sp.vx += (-K*l.sp.x - C*l.sp.vx)*dt;
+    l.sp.vy += (-K*l.sp.y - C*l.sp.vy)*dt;
+    l.sp.x = clamp(l.sp.x + l.sp.vx*dt, -80, 80);
+    l.sp.y = clamp(l.sp.y + l.sp.vy*dt, -80, 80);
+  });
+}
+
+/* ---------- 描画 ---------- */
+function setLayerUniforms(eff){
+  const n = state.layers.length;
+  const amp = new Float32Array(8), freq = new Float32Array(8),
+        dirx = new Float32Array(8), diry = new Float32Array(8),
+        waveK = new Float32Array(8), noise = new Float32Array(8),
+        ph0 = new Float32Array(8), hm = new Float32Array(8),
+        nf1 = new Float32Array(8), nf2 = new Float32Array(8),
+        spr = new Float32Array(16), on = new Float32Array(8),
+        mode = new Float32Array(8), curve = new Float32Array(8),
+        ctr = new Float32Array(16),
+        ref = new Float32Array(8).fill(100);
+  for(let i=0; i<n; i++){
+    const l = state.layers[i], p = l.p;
+    const a = p.ang*Math.PI/180;
+    amp[i] = p.amp; dirx[i] = Math.cos(a); diry[i] = Math.sin(a);
+    waveK[i] = cvWave(p.wave); noise[i] = cvNoise(p.noise);
+    ph0[i] = cvPh(p.ph); hm[i] = cvHm(p.hm);
+    on[i] = l.on ? 1 : 0;
+    mode[i] = p.mode || 0;
+    curve[i] = p.curve || 0;
+    if(l.ctr){ ctr[i*2] = l.ctr.x; ctr[i*2+1] = l.ctr.y; }
+    ref[i] = l.ref || 100;
+    if(eff){ // 書き出し: ループ整列済み周波数・バネ無効
+      freq[i] = eff.freq[i]; nf1[i] = eff.nf1[i]; nf2[i] = eff.nf2[i];
+      spr[i*2] = 0; spr[i*2+1] = 0;
+    } else {
+      freq[i] = p.freq; nf1[i] = NF1[i]; nf2[i] = NF2[i];
+      spr[i*2] = l.sp.x; spr[i*2+1] = l.sp.y;
+      amp[i] *= autoFade; // ゆらすモード中は自動揺れを止める
+    }
+  }
+  gl.uniform1fv(U.u_amp, amp); gl.uniform1fv(U.u_freq, freq);
+  gl.uniform1fv(U.u_dirx, dirx); gl.uniform1fv(U.u_diry, diry);
+  gl.uniform1fv(U.u_waveK, waveK); gl.uniform1fv(U.u_noise, noise);
+  gl.uniform1fv(U.u_ph0, ph0); gl.uniform1fv(U.u_hm, hm);
+  gl.uniform1fv(U.u_nf1, nf1); gl.uniform1fv(U.u_nf2, nf2);
+  gl.uniform2fv(U.u_spr, spr); gl.uniform1fv(U.u_on, on);
+  gl.uniform1fv(U.u_mode, mode); gl.uniform1fv(U.u_curve, curve);
+  gl.uniform2fv(U.u_ctr, ctr);
+  gl.uniform1fv(U.u_ref, ref);
+}
+function drawScene(t, eff){
+  gl.uniform1i(U.u_img, 0); gl.uniform1i(U.u_w, 1); gl.uniform1i(U.u_w2, 2);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texImg);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texW);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texW2);
+  gl.uniform2f(U.u_imgSize, state.imgW, state.imgH);
+  gl.uniform1f(U.u_t, t);
+  setLayerUniforms(eff);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+function drawView(){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, glcv.width, glcv.height);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  if(!state.img) return;
+  const W = stage.clientWidth, H = stage.clientHeight, v = state.view;
+  gl.uniform4f(U.u_rect, v.x/W*2-1, 1-v.y/H*2, v.w/W*2, v.h/H*2);
+  // シェイクの全体シフト
+  const shx = state.imgOff.x;
+  const shy = state.imgOff.y;
+  gl.uniform2f(U.u_shift, shx/W*2, -shy/H*2);
+  gl.uniform3f(U.u_bg, 0.106, 0.114, 0.133);
+  gl.uniform1f(U.u_keepA, 0);
+  drawScene(state.t, null);
+}
+const tintCv = document.createElement("canvas");
+const tintCtx = tintCv.getContext("2d", {willReadFrequently:true});
+function drawOverlay(){
+  octx.clearRect(0, 0, ovcv.width, ovcv.height);
+  if(!state.img) return;
+  const dpr = window.devicePixelRatio || 1, v = state.view;
+  if(state.mode === "paint"){
+    tintCv.width = ovcv.width; tintCv.height = ovcv.height;
+    const mA = state.maskAlpha/100;
+    const drawTint = (l, alpha) => {
+      tintCtx.clearRect(0, 0, tintCv.width, tintCv.height);
+      tintCtx.globalCompositeOperation = "source-over";
+      tintCtx.drawImage(l.canvas, v.x*dpr, v.y*dpr, v.w*dpr, v.h*dpr);
+      if(stroke && stroke.layer === l && stroke.pts.length){
+        paintStroke(tintCtx, v.x*dpr, v.y*dpr, v.scale*dpr);
+      }
+      tintCtx.globalCompositeOperation = "source-in";
+      tintCtx.fillStyle = l.color;
+      tintCtx.fillRect(0, 0, tintCv.width, tintCv.height);
+      octx.globalAlpha = alpha;
+      octx.drawImage(tintCv, 0, 0);
+    };
+    state.layers.forEach((l, i) => {
+      if(!l.show || !l.painted) return;
+      drawTint(l, (i === state.active && !state.paintPin) ? mA : mA*0.5);
+    });
+    if(pinLayer.canvas && pinLayer.show && (pinLayer.painted || (stroke && stroke.layer === pinLayer)))
+      drawTint(pinLayer, state.paintPin ? mA : mA*0.5);
+    octx.globalAlpha = 1;
+    if(cursor.in && state.tool !== "wand"){ // ブラシ/消しゴムカーソル
+      const r = state.brushSize/2*v.scale*dpr;
+      octx.beginPath();
+      octx.arc(cursor.x*dpr, cursor.y*dpr, r, 0, TAU);
+      octx.strokeStyle = (state.tool === "eraser") ? "#ff6b81" : "#ffffff";
+      octx.lineWidth = 1.5*dpr;
+      octx.setLineDash([4*dpr, 4*dpr]);
+      octx.stroke();
+      octx.setLineDash([]);
+    }
+  }
+}
+
+/* ---------- メインループ ---------- */
+let lastT = performance.now();
+function frame(now){
+  const dt = clamp((now-lastT)/1000, 0, 0.05);
+  lastT = now;
+  state.t += dt;
+  physics(dt);
+  weightTick(now);
+  drawView();
+  drawOverlay();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- キーボード ---------- */
+window.addEventListener("keydown", e => {
+  if(e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if(e.code === "Space"){ e.preventDefault(); $("#btnAuto").click(); }
+  else if(e.key === "b" || e.key === "B"){ setMode("paint"); setTool("brush"); }
+  else if(e.key === "w" || e.key === "W"){ setMode("paint"); setTool("wand"); }
+  else if(e.key === "e" || e.key === "E"){ setMode("paint"); setTool("eraser"); }
+  else if(e.key === "g" || e.key === "G") setMode("play");
+  else if(e.key === "0") fitView();
+  else if(!e.ctrlKey && !e.metaKey && e.key >= "1" && e.key <= "8"){ const i = +e.key - 1; if(state.layers[i]){ state.active = i; state.paintPin = false; updateUI(); } }
+  else if(e.key === "["){ $("#brSize").value = Math.max(8, state.brushSize-10); $("#brSize").dispatchEvent(new Event("input")); }
+  else if(e.key === "]"){ $("#brSize").value = Math.min(300, state.brushSize+10); $("#brSize").dispatchEvent(new Event("input")); }
+  else if((e.ctrlKey||e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z")){ e.preventDefault(); doUndo(); }
+  else if(((e.ctrlKey||e.metaKey) && (e.key === "y" || e.key === "Y")) ||
+          ((e.ctrlKey||e.metaKey) && e.shiftKey && (e.key === "z" || e.key === "Z"))){ e.preventDefault(); doRedo(); }
+});
+
+/* =========================================================
+   GIF エンコーダ（GIF89a / LZW / メディアンカット量子化）
+   ========================================================= */
+/*GIF-ENC-START*/
+function medianCutPalette(samples, maxColors){
+  // samples: Int32Array (r<<16|g<<8|b)
+  let boxes = [Array.from(samples)];
+  function range(box){
+    let rmin=255,rmax=0,gmin=255,gmax=0,bmin=255,bmax=0;
+    for(const c of box){
+      const r=(c>>16)&255,g=(c>>8)&255,b=c&255;
+      if(r<rmin)rmin=r; if(r>rmax)rmax=r;
+      if(g<gmin)gmin=g; if(g>gmax)gmax=g;
+      if(b<bmin)bmin=b; if(b>bmax)bmax=b;
+    }
+    const dr=rmax-rmin, dg=gmax-gmin, db=bmax-bmin;
+    const ch = (dg>=dr && dg>=db) ? 1 : (dr>=db ? 0 : 2);
+    return {spread: Math.max(dr,dg,db), ch};
+  }
+  while(boxes.length < maxColors){
+    let bi=-1, best=-1, bch=0;
+    for(let i=0;i<boxes.length;i++){
+      if(boxes[i].length < 2) continue;
+      const r = range(boxes[i]);
+      const score = r.spread * Math.sqrt(boxes[i].length);
+      if(score > best){ best = score; bi = i; bch = r.ch; }
+    }
+    if(bi < 0 || best <= 0) break;
+    const box = boxes[bi];
+    const shift = bch===0?16:(bch===1?8:0);
+    box.sort((a,b)=>((a>>shift)&255)-((b>>shift)&255));
+    const mid = box.length>>1;
+    boxes.splice(bi, 1, box.slice(0, mid), box.slice(mid));
+  }
+  const pal = new Uint8Array(256*3);
+  boxes.forEach((box, i) => {
+    let r=0,g=0,b=0;
+    for(const c of box){ r+=(c>>16)&255; g+=(c>>8)&255; b+=c&255; }
+    const n = Math.max(1, box.length);
+    pal[i*3] = Math.round(r/n); pal[i*3+1] = Math.round(g/n); pal[i*3+2] = Math.round(b/n);
+  });
+  return {pal, count: boxes.length};
+}
+const BAYER4 = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+function quantizeFrame(rgba, w, h, pal, palCount, cache){
+  const out = new Uint8Array(w*h);
+  for(let y=0; y<h; y++){
+    for(let x=0; x<w; x++){
+      const i = (y*w+x)*4;
+      const a = rgba[i+3]/255;
+      const dth = (BAYER4[(x&3)+((y&3)<<2)]/16 - 0.5) * 18;
+      // 透明は白に合成
+      let r = Math.round(rgba[i]*a + 255*(1-a) + dth);
+      let g = Math.round(rgba[i+1]*a + 255*(1-a) + dth);
+      let b = Math.round(rgba[i+2]*a + 255*(1-a) + dth);
+      r = r<0?0:(r>255?255:r); g = g<0?0:(g>255?255:g); b = b<0?0:(b>255?255:b);
+      const key = ((r>>3)<<10) | ((g>>3)<<5) | (b>>3);
+      let idx = cache[key];
+      if(idx === -1){
+        let bd = 1e9;
+        for(let p=0; p<palCount; p++){
+          const dr = r-pal[p*3], dg = g-pal[p*3+1], db = b-pal[p*3+2];
+          const d = dr*dr + dg*dg*2 + db*db;
+          if(d < bd){ bd = d; idx = p; }
+        }
+        cache[key] = idx;
+      }
+      out[y*w+x] = idx;
+    }
+  }
+  return out;
+}
+function lzwEncode(pixels, minCodeSize, out){
+  const CLEAR = 1<<minCodeSize, EOI = CLEAR+1;
+  let codeSize = minCodeSize+1;
+  let maxcode = (1<<codeSize)-1;
+  let next = EOI+1;
+  let dict = new Map();
+  let acc = 0, nbits = 0;
+  const bytes = [];
+  const emit = c => {
+    acc |= c << nbits; nbits += codeSize;
+    while(nbits >= 8){ bytes.push(acc & 255); acc >>>= 8; nbits -= 8; }
+    if(next > maxcode && codeSize < 12){ codeSize++; maxcode = (1<<codeSize)-1; }
+  };
+  emit(CLEAR);
+  let prev = pixels[0];
+  for(let i=1; i<pixels.length; i++){
+    const k = pixels[i];
+    const key = (prev<<8) | k;
+    const v = dict.get(key);
+    if(v !== undefined){ prev = v; continue; }
+    emit(prev);
+    if(next < 4096){
+      dict.set(key, next++);
+    } else {
+      emit(CLEAR);
+      dict = new Map(); next = EOI+1;
+      codeSize = minCodeSize+1; maxcode = (1<<codeSize)-1;
+    }
+    prev = k;
+  }
+  emit(prev);
+  emit(EOI);
+  if(nbits > 0) bytes.push(acc & 255);
+  // 255バイトずつサブブロック化
+  out.push(minCodeSize);
+  for(let i=0; i<bytes.length; i+=255){
+    const n = Math.min(255, bytes.length-i);
+    out.push(n);
+    for(let j=0; j<n; j++) out.push(bytes[i+j]);
+  }
+  out.push(0);
+}
+function buildGif(indexedFrames, w, h, pal, delayCs){
+  const out = [];
+  const u16 = v => { out.push(v&255, (v>>8)&255); };
+  const str = s => { for(let i=0;i<s.length;i++) out.push(s.charCodeAt(i)); };
+  str("GIF89a");
+  u16(w); u16(h);
+  out.push(0xF7, 0, 0);                 // GCT有 8bit 256色
+  for(let i=0; i<256*3; i++) out.push(pal[i] || 0);
+  // ループ拡張
+  out.push(0x21, 0xFF, 0x0B); str("NETSCAPE2.0");
+  out.push(3, 1); u16(0); out.push(0);
+  for(const fr of indexedFrames){
+    out.push(0x21, 0xF9, 4, 0x04);      // GCE: disposal=1
+    u16(delayCs); out.push(0, 0);
+    out.push(0x2C); u16(0); u16(0); u16(w); u16(h); out.push(0);
+    lzwEncode(fr, 8, out);
+  }
+  out.push(0x3B);
+  return new Uint8Array(out);
+}
+/*GIF-ENC-END*/
+
+/* =========================================================
+   ZIP ビルダー（無圧縮STORE / PNGは圧縮済みなので十分）
+   ========================================================= */
+/*ZIP-START*/
+const CRC_T = (() => {
+  const t = new Uint32Array(256);
+  for(let n=0; n<256; n++){
+    let c = n;
+    for(let k=0; k<8; k++) c = (c&1) ? 0xEDB88320 ^ (c>>>1) : c>>>1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8){
+  let c = 0xFFFFFFFF;
+  for(let i=0; i<u8.length; i++) c = (c>>>8) ^ CRC_T[(c ^ u8[i]) & 255];
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function buildZip(files){ // files: [{name, data:Uint8Array}]
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  for(const f of files){
+    const nm = enc.encode(f.name);
+    const crc = crc32(f.data);
+    const lh = new Uint8Array(30 + nm.length);
+    const dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, f.data.length, true);
+    dv.setUint32(22, f.data.length, true);
+    dv.setUint16(26, nm.length, true);
+    lh.set(nm, 30);
+    parts.push(lh, f.data);
+    central.push({nm, crc, size: f.data.length, offset});
+    offset += lh.length + f.data.length;
+  }
+  const cdStart = offset;
+  for(const c of central){
+    const ch = new Uint8Array(46 + c.nm.length);
+    const dv = new DataView(ch.buffer);
+    dv.setUint32(0, 0x02014b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 20, true);
+    dv.setUint32(16, c.crc, true);
+    dv.setUint32(20, c.size, true);
+    dv.setUint32(24, c.size, true);
+    dv.setUint16(28, c.nm.length, true);
+    dv.setUint32(42, c.offset, true);
+    ch.set(c.nm, 46);
+    parts.push(ch);
+    offset += ch.length;
+  }
+  const eocd = new Uint8Array(22);
+  const dv = new DataView(eocd.buffer);
+  dv.setUint32(0, 0x06054b50, true);
+  dv.setUint16(8, central.length, true);
+  dv.setUint16(10, central.length, true);
+  dv.setUint32(12, offset - cdStart, true);
+  dv.setUint32(16, cdStart, true);
+  parts.push(eocd);
+  return parts;
+}
+/*ZIP-END*/
+
+/* ---------- 完全ループ長の自動計算 ----------
+   使用中の全周波数（各領域のfreq・ゆらぎのNF・風のWF）が
+   「整数回ちょうど」に最も近く収まる全体周期Tを探す */
+function loopFreqList(){
+  const fs = [];
+  state.layers.forEach((l, i) => {
+    if(!l.painted || !l.on) return;
+    fs.push([l.p.freq, 1]);                                  // 本体の揺れは最優先
+    if(l.p.noise > 0){ fs.push([NF1[i], 0.25]); fs.push([NF2[i], 0.25]); } // ゆらぎは弱め
+  });
+  return fs;
+}
+function computeLoopT(){
+  const fs = loopFreqList();
+  if(!fs.length) return 2;
+  let bestT = 2, bestScore = 1e9;
+  for(let T=1; T<=12.001; T+=0.25){
+    let score = 0;
+    for(const [f, w] of fs){
+      const fr = Math.max(1, Math.round(f*T))/T; // このTに揃えた時の実周波数
+      score += w * Math.abs(fr-f)/f;             // 元の速さからのズレ
+    }
+    score += T*0.004; // ほぼ同点なら短い方を選ぶ
+    if(score < bestScore - 1e-9){ bestScore = score; bestT = T; }
+  }
+  return bestT;
+}
+function updateLoopInfo(){
+  const el = $("#loopInfo"); if(!el) return;
+  if($("#gifDur").value !== "auto"){ el.textContent = ""; return; }
+  const T = computeLoopT();
+  el.textContent = `🔁 完全ループ: ${(+T.toFixed(2))}秒（全領域の周期が繋がる長さを自動計算）`;
+}
+$("#gifDur").onchange = updateLoopInfo;
+
+/* ---------- GIF書き出し ---------- */
+let exporting = false;
+async function exportGif(){
+  if(!state.img || exporting) return;
+  exporting = true;
+  $("#btnGif").disabled = true;
+  const prog = $("#prog"), outBox = $("#gifout");
+  outBox.innerHTML = "";
+  try{
+    const durSel = $("#gifDur").value;
+    const dur = durSel === "auto" ? computeLoopT() : +durSel;
+    const fps = +$("#gifFps").value;
+    const delayCs = Math.max(2, Math.round(100/fps));
+    const N = Math.max(2, Math.round(dur*100/delayCs));
+    const T = N*delayCs/100;
+    // ループ整列: 各周波数を 1/T の整数倍へスナップ
+    const eff = {freq:new Array(8).fill(0), nf1:new Array(8).fill(0), nf2:new Array(8).fill(0)};
+    state.layers.forEach((l, i) => {
+      eff.freq[i] = Math.max(1, Math.round(l.p.freq*T))/T;
+      eff.nf1[i] = Math.max(1, Math.round(NF1[i]*T))/T;
+      eff.nf2[i] = Math.max(1, Math.round(NF2[i]*T))/T;
+    });
+    let ew = +$("#gifW").value || state.imgW;
+    ew = Math.min(ew, state.imgW);
+    let eh = Math.round(ew*state.imgH/state.imgW);
+    ew -= ew%2; eh -= eh%2;
+    // FBO
+    const fboTex = makeTex();
+    gl.bindTexture(gl.TEXTURE_2D, fboTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ew, eh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTex, 0);
+    const frames = [];
+    for(let k=0; k<N; k++){
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.viewport(0, 0, ew, eh);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform4f(U.u_rect, -1, 1, 2, 2);
+      gl.uniform2f(U.u_shift, 0, 0);
+      gl.uniform3f(U.u_bg, 1, 1, 1);
+      gl.uniform1f(U.u_keepA, 0);
+      drawScene(k*delayCs/100, eff);
+      const px = new Uint8Array(ew*eh*4);
+      gl.readPixels(0, 0, ew, eh, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      // 上下反転
+      const fl = new Uint8Array(ew*eh*4);
+      for(let y=0; y<eh; y++) fl.set(px.subarray((eh-1-y)*ew*4, (eh-y)*ew*4), y*ew*4);
+      frames.push(fl);
+      prog.textContent = `フレーム描画中 ${k+1}/${N}`;
+      await new Promise(r => setTimeout(r));
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fbo); gl.deleteTexture(fboTex);
+    // パレット（全フレームからサンプリング）
+    prog.textContent = "パレット生成中…";
+    await new Promise(r => setTimeout(r));
+    const sampleN = 24000;
+    const step = Math.max(1, Math.floor(N*ew*eh/sampleN));
+    const samples = [];
+    for(let f=0; f<N; f++){
+      const d = frames[f];
+      for(let p=(f*7)%step; p<ew*eh; p+=step){
+        const i = p*4, a = d[i+3]/255;
+        const r = Math.round(d[i]*a+255*(1-a)), g = Math.round(d[i+1]*a+255*(1-a)), b = Math.round(d[i+2]*a+255*(1-a));
+        samples.push((r<<16)|(g<<8)|b);
+      }
+    }
+    const {pal, count} = medianCutPalette(samples, 256);
+    const cache = new Int16Array(32768).fill(-1);
+    const indexed = [];
+    for(let k=0; k<N; k++){
+      indexed.push(quantizeFrame(frames[k], ew, eh, pal, count, cache));
+      frames[k] = null;
+      prog.textContent = `変換中 ${k+1}/${N}`;
+      await new Promise(r => setTimeout(r));
+    }
+    prog.textContent = "GIF圧縮中…";
+    await new Promise(r => setTimeout(r));
+    const bytes = buildGif(indexed, ew, eh, pal, delayCs);
+    const blob = new Blob([bytes], {type:"image/gif"});
+    const url = URL.createObjectURL(blob);
+    const kb = (blob.size/1024).toFixed(0);
+    const d = new Date();
+    const fn = `yure_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.gif`;
+    prog.textContent = "";
+    outBox.innerHTML = `<div class="small">${ew}×${eh} / ${N}コマ / ${kb} KB${durSel === "auto" ? ` / 🔁完全ループ ${+T.toFixed(2)}秒` : ""}</div>`
+      + `<a href="${url}" download="${fn}">💾 ${fn} をダウンロード</a><br>`
+      + `<img src="${url}" alt="preview">`;
+  }catch(err){
+    prog.textContent = "エラー: " + err.message;
+  }finally{
+    exporting = false;
+    $("#btnGif").disabled = false;
+  }
+}
+$("#btnGif").onclick = exportGif;
+
+/* ---------- 連番PNG書き出し ---------- */
+async function exportPng(){
+  if(!state.img || exporting) return;
+  exporting = true;
+  $("#btnGif").disabled = true; $("#btnPng").disabled = true;
+  const prog = $("#prog"), outBox = $("#gifout");
+  outBox.innerHTML = "";
+  try{
+    const durSel = $("#gifDur").value;
+    const dur = durSel === "auto" ? computeLoopT() : +durSel;
+    const fps = +$("#gifFps").value;
+    const delayCs = Math.max(2, Math.round(100/fps));
+    const N = Math.max(2, Math.round(dur*100/delayCs));
+    const T = N*delayCs/100;
+    const eff = {freq:new Array(8).fill(0), nf1:new Array(8).fill(0), nf2:new Array(8).fill(0)};
+    state.layers.forEach((l, i) => {
+      eff.freq[i] = Math.max(1, Math.round(l.p.freq*T))/T;
+      eff.nf1[i] = Math.max(1, Math.round(NF1[i]*T))/T;
+      eff.nf2[i] = Math.max(1, Math.round(NF2[i]*T))/T;
+    });
+    let ew = +$("#gifW").value || state.imgW;
+    ew = Math.min(ew, state.imgW);
+    let eh = Math.round(ew*state.imgH/state.imgW);
+    ew -= ew%2; eh -= eh%2;
+    const fboTex = makeTex();
+    gl.bindTexture(gl.TEXTURE_2D, fboTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ew, eh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const fbo = gl.createFramebuffer();
+    const pcv = document.createElement("canvas"); pcv.width = ew; pcv.height = eh;
+    const pctx = pcv.getContext("2d");
+    const files = [];
+    for(let k=0; k<N; k++){
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTex, 0);
+      gl.viewport(0, 0, ew, eh);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.clearColor(0.106, 0.114, 0.133, 1);
+      gl.uniform4f(U.u_rect, -1, 1, 2, 2);
+      gl.uniform2f(U.u_shift, 0, 0);
+      gl.uniform1f(U.u_keepA, 1);          // 透過保持
+      drawScene(k*delayCs/100, eff);
+      const px = new Uint8Array(ew*eh*4);
+      gl.readPixels(0, 0, ew, eh, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const fl = new Uint8ClampedArray(ew*eh*4);
+      for(let y=0; y<eh; y++) fl.set(px.subarray((eh-1-y)*ew*4, (eh-y)*ew*4), y*ew*4);
+      pctx.putImageData(new ImageData(fl, ew, eh), 0, 0);
+      const blob = await new Promise(r => pcv.toBlob(r, "image/png"));
+      files.push({name: `frame_${String(k).padStart(3,"0")}.png`,
+                  data: new Uint8Array(await blob.arrayBuffer())});
+      prog.textContent = `PNG生成中 ${k+1}/${N}`;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fbo); gl.deleteTexture(fboTex);
+    prog.textContent = "zip作成中…";
+    await new Promise(r => setTimeout(r));
+    const blob = new Blob(buildZip(files), {type:"application/zip"});
+    const url = URL.createObjectURL(blob);
+    const mb = (blob.size/1048576).toFixed(1);
+    const d = new Date();
+    const fn = `yure_png_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.zip`;
+    prog.textContent = "";
+    outBox.innerHTML = `<div class="small">${ew}×${eh} / ${N}枚 / ${mb} MB / ${fps}fps（透過保持）${durSel === "auto" ? ` / 🔁完全ループ ${+T.toFixed(2)}秒` : ""}</div>`
+      + `<a href="${url}" download="${fn}">💾 ${fn} をダウンロード</a>`;
+  }catch(err){
+    prog.textContent = "エラー: " + err.message;
+  }finally{
+    exporting = false;
+    $("#btnGif").disabled = false; $("#btnPng").disabled = false;
+  }
+}
+$("#btnPng").onclick = exportPng;
+
+/* ---------- WebM録画 ---------- */
+let rec = null;
+$("#btnRec").onclick = () => {
+  if(rec){ rec.stop(); return; }
+  if(!state.img) return;
+  const stream = glcv.captureStream(30);
+  const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+    ? "video/webm;codecs=vp9" : "video/webm";
+  const chunks = [];
+  rec = new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond:8_000_000});
+  rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    const blob = new Blob(chunks, {type:"video/webm"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const d = new Date();
+    a.download = `yure_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.webm`;
+    a.click();
+    rec = null;
+    $("#btnRec").classList.remove("rec");
+    $("#btnRec").textContent = "● WebM録画（操作もそのまま録れる）";
+  };
+  rec.start();
+  $("#btnRec").classList.add("rec");
+  $("#btnRec").textContent = "■ 録画停止して保存";
+};
+
+/* ---------- ふれるページ書き出し（さわれる静止画・単体HTML） ---------- */
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function buildViewerHtml(data, title){
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)} — ゆれ助</title>
+<style>
+html,body{height:100%;margin:0;background:#101216;overflow:hidden;}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;}
+#tip{position:fixed;left:0;right:0;bottom:10px;text-align:center;color:#9aa1af;
+font:12px "Segoe UI","Hiragino Sans",sans-serif;opacity:.85;transition:opacity 1.2s;pointer-events:none;}
+#autoBtn{position:fixed;top:12px;right:12px;z-index:10;
+background:rgba(36,39,46,.75);color:#e8eaf0;border:1px solid rgba(255,255,255,.18);
+border-radius:20px;padding:7px 14px;font:12px "Segoe UI","Hiragino Sans",sans-serif;
+cursor:pointer;backdrop-filter:blur(4px);opacity:.9;transition:opacity .2s;}
+#autoBtn.off{opacity:.45;}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<button id="autoBtn" title="自動でゆれるのON/OFF（触った揺れはOFF中も効きます）">🌀 自動でゆれる</button>
+<div id="tip">塗った所をドラッグ＝つつく／背景ドラッグ＝シェイク — ゆれ助 v3.0</div>
+<script>
+"use strict";
+const D = ${JSON.stringify(data)};
+const clamp = ${clamp.toString()};
+const TAU = Math.PI*2;
+const NF1 = ${JSON.stringify(NF1)};
+const NF2 = ${JSON.stringify(NF2)};
+const boxBlur = ${boxBlur.toString()};
+const VS = ${JSON.stringify(VS)};
+const FS = ${JSON.stringify(FS)};
+const cv = document.getElementById("cv");
+const gl = cv.getContext("webgl", {alpha:false});
+function sh(t, s){
+  const x = gl.createShader(t);
+  gl.shaderSource(x, s); gl.compileShader(x);
+  if(!gl.getShaderParameter(x, gl.COMPILE_STATUS))
+    console.error("yure shader:", gl.getShaderInfoLog(x));
+  return x;
+}
+const pr = gl.createProgram();
+gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS));
+gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(pr); gl.useProgram(pr);
+const U = {};
+["u_rect","u_shift","u_img","u_w","u_w2","u_imgSize","u_t","u_amp","u_freq","u_dirx","u_diry",
+ "u_waveK","u_noise","u_ph0","u_hm","u_nf1","u_nf2","u_spr","u_on","u_mode","u_curve","u_ctr","u_ref",
+ "u_bg","u_keepA"].forEach(n => U[n] = gl.getUniformLocation(pr, n));
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0, 0,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(pr, "a_pos");
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+function mkTex(){
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  return t;
+}
+const texImg = mkTex(), texW = mkTex(), texW2 = mkTex();
+gl.clearColor(0.063, 0.071, 0.086, 1);
+let wW = 1, wH = 1;
+const L = D.layers.map(ld => ({
+  p: ld.p, on: ld.on !== false, mask: ld.mask, wArr: null,
+  ctr: {x: D.w/2, y: D.h/2}, ref: Math.min(D.w, D.h)/4,
+  sp: {x:0, y:0, vx:0, vy:0},
+}));
+const loadImg = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = src; });
+async function init(){
+  const im = await loadImg(D.img);
+  const c = document.createElement("canvas"); c.width = D.w; c.height = D.h;
+  c.getContext("2d").drawImage(im, 0, 0, D.w, D.h);
+  gl.bindTexture(gl.TEXTURE_2D, texImg);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  const sc = Math.min(1, 512/Math.max(D.w, D.h));
+  wW = Math.max(1, Math.round(D.w*sc)); wH = Math.max(1, Math.round(D.h*sc));
+  const t = document.createElement("canvas"); t.width = wW; t.height = wH;
+  const tc = t.getContext("2d", {willReadFrequently:true});
+  const r = Math.max(1, Math.round(D.blur*sc));
+  const toA = async src => {
+    tc.clearRect(0, 0, wW, wH);
+    if(src){ const m = await loadImg(src); tc.drawImage(m, 0, 0, wW, wH); }
+    const dd = tc.getImageData(0, 0, wW, wH).data;
+    const a = new Float32Array(wW*wH);
+    for(let k=0; k<a.length; k++) a[k] = dd[k*4+3];
+    return boxBlur(a, wW, wH, r);
+  };
+  const pinA = D.pin ? await toA(D.pin) : null;
+  const rgbaA = new Uint8Array(wW*wH*4), rgbaB = new Uint8Array(wW*wH*4);
+  for(let i=0; i<L.length; i++){
+    const a = await toA(L[i].mask);
+    if(pinA) for(let k=0; k<a.length; k++) a[k] *= 1 - Math.min(pinA[k], 255)/255;
+    L[i].wArr = a;
+    const rgba = i < 4 ? rgbaA : rgbaB, ch = i & 3;
+    let sw = 0, sx = 0, sy = 0, area = 0;
+    for(let k=0; k<a.length; k++){
+      const v = a[k];
+      if(v > 8){ sw += v; sx += v*(k%wW); sy += v*((k/wW)|0); area += v/255; }
+      rgba[k*4+ch] = clamp(Math.round(v), 0, 255);
+    }
+    const ti = D.w/wW;
+    if(sw > 0){
+      L[i].ctr = {x: sx/sw*ti, y: sy/sw*ti};
+      L[i].ref = Math.max(20, Math.sqrt(area/Math.PI)*ti);
+    }
+  }
+  gl.bindTexture(gl.TEXTURE_2D, texW);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wW, wH, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaA);
+  gl.bindTexture(gl.TEXTURE_2D, texW2);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wW, wH, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaB);
+  requestAnimationFrame(frame);
+}
+let view = {x:0, y:0, w:1, h:1, scale:1};
+function fit(){
+  const dpr = window.devicePixelRatio || 1;
+  const W = innerWidth, H = innerHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  const pad = 16;
+  const s = Math.min((W-pad*2)/D.w, (H-pad*2)/D.h);
+  view = {x:(W-D.w*s)/2, y:(H-D.h*s)/2, w:D.w*s, h:D.h*s, scale:s};
+}
+addEventListener("resize", fit); fit();
+function weightAt(l, ix, iy){
+  if(!l.wArr) return 0;
+  const x = clamp(Math.round(ix*wW/D.w), 0, wW-1);
+  const y = clamp(Math.round(iy*wH/D.h), 0, wH-1);
+  return l.wArr[y*wW+x]/255;
+}
+const curs = {x:-9999, y:-9999, in:false};
+let poke = null, lastPt = null;
+const imgOff = {x:0, y:0, vx:0, vy:0, drag:false, px:0, py:0};
+let prevOff = {x:0, y:0};
+const toImgP = (ex, ey) => ({x:(ex-view.x)/view.scale, y:(ey-view.y)/view.scale});
+cv.addEventListener("pointerdown", e => {
+  cv.setPointerCapture(e.pointerId);
+  const ip = toImgP(e.clientX, e.clientY);
+  poke = L.filter(l => l.on && weightAt(l, ip.x, ip.y) > 0.12);
+  if(poke.length === 0){ poke = null; imgOff.drag = true; imgOff.px = e.clientX; imgOff.py = e.clientY; cv.style.cursor = "grabbing"; }
+  else { poke.forEach(l => { const w = weightAt(l, ip.x, ip.y); l.sp.vy += 65*Math.max(w, 0.2); }); cv.style.cursor = "pointer"; }
+  lastPt = ip;
+});
+cv.addEventListener("pointermove", e => {
+  curs.x = e.clientX; curs.y = e.clientY; curs.in = true;
+  if(poke && poke.length){
+    const ip = toImgP(e.clientX, e.clientY);
+    const dx = ip.x-lastPt.x, dy = ip.y-lastPt.y;
+    poke.forEach(l => {
+      const w = weightAt(l, ip.x, ip.y);
+      l.sp.vx += dx*6*Math.max(w, 0.2);
+      l.sp.vy += dy*6*Math.max(w, 0.2);
+    });
+    lastPt = ip;
+  } else if(imgOff.drag){
+    imgOff.x = clamp((e.clientX-imgOff.px)*0.95, -120, 120);
+    imgOff.y = clamp((e.clientY-imgOff.py)*0.95, -120, 120);
+  } else {
+    const ip = toImgP(e.clientX, e.clientY);
+    cv.style.cursor = L.some(l => l.on && weightAt(l, ip.x, ip.y) > 0.12) ? "pointer" : "grab";
+  }
+});
+const endP = () => { poke = null; imgOff.drag = false; cv.style.cursor = "grab"; };
+cv.addEventListener("pointerup", endP);
+cv.addEventListener("pointercancel", endP);
+cv.addEventListener("pointerleave", () => { curs.in = false; });
+let t = 0, last = performance.now();
+let autoPlay = true, autoFade = 1;
+const autoBtn = document.getElementById("autoBtn");
+function syncAutoBtn(){
+  autoBtn.textContent = autoPlay ? "🌀 自動でゆれる" : "⏸ 自動ゆれ 停止中";
+  autoBtn.classList.toggle("off", !autoPlay);
+}
+autoBtn.onclick = () => { autoPlay = !autoPlay; syncAutoBtn(); };
+syncAutoBtn();
+function frame(now){
+  const dt = clamp((now-last)/1000, 0, 0.05);
+  last = now; t += dt;
+  autoFade += ((autoPlay ? 1 : 0) - autoFade) * Math.min(1, dt*4);
+  const n = L.length;
+  if(!imgOff.drag){
+    const K = 230, C = 11;
+    imgOff.vx += (-K*imgOff.x - C*imgOff.vx)*dt; imgOff.vy += (-K*imgOff.y - C*imgOff.vy)*dt;
+    imgOff.x += imgOff.vx*dt; imgOff.y += imgOff.vy*dt;
+  }
+  const sc = view.scale || 1;
+  const ddx = (imgOff.x-prevOff.x)/sc, ddy = (imgOff.y-prevOff.y)/sc;
+  prevOff = {x:imgOff.x, y:imgOff.y};
+  L.forEach((l, i) => {
+    l.sp.vx -= ddx*3.0; l.sp.vy -= ddy*3.0;
+    const K = 110, C = 2 + (l.p.damp ?? 30)*0.18;
+    l.sp.vx += (-K*l.sp.x - C*l.sp.vx)*dt;
+    l.sp.vy += (-K*l.sp.y - C*l.sp.vy)*dt;
+    l.sp.x = clamp(l.sp.x + l.sp.vx*dt, -80, 80);
+    l.sp.y = clamp(l.sp.y + l.sp.vy*dt, -80, 80);
+  });
+  draw();
+  requestAnimationFrame(frame);
+}
+function draw(){
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  const W = innerWidth, H = innerHeight;
+  gl.uniform4f(U.u_rect, view.x/W*2-1, 1-view.y/H*2, view.w/W*2, view.h/H*2);
+  gl.uniform2f(U.u_shift, imgOff.x/W*2, -imgOff.y/H*2);
+  gl.uniform3f(U.u_bg, 0.063, 0.071, 0.086);
+  gl.uniform1f(U.u_keepA, 0);
+  gl.uniform1i(U.u_img, 0); gl.uniform1i(U.u_w, 1); gl.uniform1i(U.u_w2, 2);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texImg);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texW);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texW2);
+  gl.uniform2f(U.u_imgSize, D.w, D.h);
+  gl.uniform1f(U.u_t, t);
+  const amp = new Float32Array(8), freq = new Float32Array(8),
+        dirx = new Float32Array(8), diry = new Float32Array(8),
+        waveK = new Float32Array(8), noise = new Float32Array(8),
+        ph0 = new Float32Array(8), hm = new Float32Array(8),
+        nf1 = new Float32Array(8), nf2 = new Float32Array(8),
+        spr = new Float32Array(16), on = new Float32Array(8),
+        mode = new Float32Array(8), curve = new Float32Array(8),
+        ctr = new Float32Array(16),
+        ref = new Float32Array(8).fill(100);
+  L.forEach((l, i) => {
+    const p = l.p, a = p.ang*Math.PI/180;
+    amp[i] = p.amp * autoFade; dirx[i] = Math.cos(a); diry[i] = Math.sin(a);
+    waveK[i] = p.wave*0.0006; noise[i] = p.noise/125;
+    ph0[i] = p.ph*Math.PI/180; hm[i] = p.hm/100;
+    freq[i] = p.freq; nf1[i] = NF1[i]; nf2[i] = NF2[i];
+    on[i] = l.on ? 1 : 0; mode[i] = p.mode || 0; curve[i] = p.curve || 0;
+    ctr[i*2] = l.ctr.x; ctr[i*2+1] = l.ctr.y; ref[i] = l.ref || 100;
+    spr[i*2] = l.sp.x; spr[i*2+1] = l.sp.y;
+  });
+  gl.uniform1fv(U.u_amp, amp); gl.uniform1fv(U.u_freq, freq);
+  gl.uniform1fv(U.u_dirx, dirx); gl.uniform1fv(U.u_diry, diry);
+  gl.uniform1fv(U.u_waveK, waveK); gl.uniform1fv(U.u_noise, noise);
+  gl.uniform1fv(U.u_ph0, ph0); gl.uniform1fv(U.u_hm, hm);
+  gl.uniform1fv(U.u_nf1, nf1); gl.uniform1fv(U.u_nf2, nf2);
+  gl.uniform2fv(U.u_spr, spr); gl.uniform1fv(U.u_on, on);
+  gl.uniform1fv(U.u_mode, mode); gl.uniform1fv(U.u_curve, curve);
+  gl.uniform2fv(U.u_ctr, ctr);
+  gl.uniform1fv(U.u_ref, ref);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+setTimeout(() => { const tp = document.getElementById("tip"); if(tp) tp.style.opacity = "0"; }, 6000);
+init();
+<\/script>
+</body>
+</html>`;
+}
+function exportPage(){
+  if(!state.img){ alert("先に画像を開いてください"); return; }
+  if(!state.layers.some(l => l.painted)){ alert("先に揺らしたい所を塗ってください"); return; }
+  const data = {
+    img: state.img.toDataURL("image/png"),
+    w: state.imgW, h: state.imgH,
+    blur: EDGE_SOFT,
+    layers: state.layers.map(l => ({p: l.p, on: l.on, mask: l.painted ? l.canvas.toDataURL("image/png") : null})),
+    pin: pinLayer.painted ? pinLayer.canvas.toDataURL("image/png") : null,
+  };
+  const title = state.imgName.replace(/\.[^.]+$/, "") || "yure";
+  const html = buildViewerHtml(data, title);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([html], {type:"text/html"}));
+  a.download = title + "_fureru.html";
+  a.click();
+  $("#prog").textContent = "ふれるページを書き出しました（" + (html.length/1048576).toFixed(1) + " MB）";
+}
+$("#btnPage").onclick = exportPage;
+
+/* ---------- 保存/読み込み ---------- */
+function saveLS(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      brushOp: state.brushOp,
+      toolCfg: state.toolCfg,
+      wandTol: state.wandTol, edgeSnap: state.edgeSnap, snapTh: state.snapTh,
+      layers: state.layers.map(l => ({p:l.p, on:l.on, show:l.show, name:l.name, color:l.color, customColor:l.customColor})),
+    }));
+  }catch(e){}
+  updateLoopInfo();
+  autosaveSoon();
+}
+function loadLS(){
+  try{
+    const d = JSON.parse(localStorage.getItem(LS_KEY));
+    if(!d) return;
+    if(d.brushOp) setBrushOp(d.brushOp);
+    if(d.toolCfg){
+      if(d.toolCfg.brush) Object.assign(state.toolCfg.brush, d.toolCfg.brush);
+      if(d.toolCfg.eraser) Object.assign(state.toolCfg.eraser, d.toolCfg.eraser);
+    }
+    if(d.wandTol){ state.wandTol = d.wandTol; $("#wandTol").value = d.wandTol; $("#wandTolV").textContent = d.wandTol; }
+    if(d.snapTh){ state.snapTh = d.snapTh; $("#snapTh").value = d.snapTh; $("#snapThV").textContent = d.snapTh; }
+    if(d.edgeSnap){ state.edgeSnap = true; $("#btnSnap").classList.add("on"); $("#snapRow").style.display = ""; }
+    if(Array.isArray(d.layers)){
+      d.layers.slice(0, MAXL).forEach((ld, i) => {
+        if(!state.layers[i]) state.layers.push(newLayer(i));
+        const l = state.layers[i];
+        Object.assign(l.p, ld.p || {});
+        l.on = ld.on !== false;
+        l.show = ld.show !== false;
+        if(ld.name) l.name = ld.name;
+        if(ld.color){ l.color = ld.color; l.customColor = !!ld.customColor; }
+      });
+    }
+  }catch(e){}
+}
+$("#btnSaveJson").onclick = () => {
+  if(!state.img){ alert("先に画像を開いてください"); return; }
+  const data = {
+    app: "yuresuke", v: 3,
+    img: {w: state.imgW, h: state.imgH, name: state.imgName},
+    pin: pinLayer.painted ? pinLayer.canvas.toDataURL("image/png") : null,
+    layers: state.layers.map(l => ({
+      p: l.p, on: l.on, show: l.show, name: l.name, color: l.color, customColor: l.customColor,
+      mask: l.painted ? l.canvas.toDataURL("image/png") : null,
+    })),
+  };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:"application/json"}));
+  a.download = (state.imgName.replace(/\.[^.]+$/, "") || "yure") + ".yure.json";
+  a.click();
+};
+$("#btnLoadJson").onclick = () => $("#fileJson").click();
+$("#fileJson").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(d.app !== "yuresuke") throw new Error("形式が違います");
+      if(!state.img){ alert("先に画像を開いてから読み込んでください"); return; }
+      state.layers = [];
+      let pending = 0;
+      const loadMask = (l, src) => {
+        pending++;
+        const im = new Image();
+        im.onload = () => {
+          l.ctx.drawImage(im, 0, 0, state.imgW, state.imgH);
+          l.painted = true;
+          if(--pending === 0) rebuildWeights();
+        };
+        im.src = src;
+      };
+      d.layers.slice(0, MAXL).forEach((ld, i) => {
+        const l = newLayer(i);
+        Object.assign(l.p, ld.p || {});
+        l.on = ld.on !== false;
+        if(ld.show === false) l.show = false;
+        if(ld.name) l.name = ld.name;
+        if(ld.color){ l.color = ld.color; l.customColor = !!ld.customColor; }
+        state.layers.push(l);
+        initLayerCanvas(l);
+        if(ld.mask) loadMask(l, ld.mask);
+      });
+      initLayerCanvas(pinLayer);
+      if(d.pin) loadMask(pinLayer, d.pin);
+      state.active = 0; state.paintPin = false;
+      if(pending === 0) rebuildWeights();
+      updateUI(); saveLS();
+    }catch(err){ alert("読み込めませんでした: " + err.message); }
+  };
+  r.readAsText(f);
+  e.target.value = "";
+};
+
+/* ---------- 自動保存 (IndexedDB) ---------- */
+const IDB_NAME = "yuresuke", IDB_STORE = "session", IDB_KEY = "last";
+function idbOpen(){
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open(IDB_NAME, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(IDB_STORE);
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+function idbPut(v){ return idbOpen().then(db => new Promise((res, rej) => {
+  const tx = db.transaction(IDB_STORE, "readwrite");
+  tx.objectStore(IDB_STORE).put(v, IDB_KEY);
+  tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+})); }
+function idbGet(){ return idbOpen().then(db => new Promise((res, rej) => {
+  const rq = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
+  rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error);
+})); }
+function idbClear(){ return idbOpen().then(db => new Promise(res => {
+  const tx = db.transaction(IDB_STORE, "readwrite");
+  tx.objectStore(IDB_STORE).delete(IDB_KEY); tx.oncomplete = res;
+})).catch(()=>{}); }
+
+var asTimer = 0, asDirty = false, asBusy = false, asReady = false;
+function setSaveStat(t){ const e = $("#asStat"); if(e){ e.textContent = t; e.style.opacity = t ? "1" : "0"; } }
+function autosaveSoon(){
+  if(!asReady || !state.img) return;   // 復元前・画像なしは対象外
+  asDirty = true;
+  clearTimeout(asTimer);
+  asTimer = setTimeout(flushAutosave, 1500);
+}
+async function flushAutosave(){
+  if(!state.img || asBusy) return;
+  asBusy = true; setSaveStat("保存中…");
+  try{
+    const snap = {
+      t: Date.now(), imgName: state.imgName,
+      img: state.img.toDataURL("image/png"),
+      imgW: state.imgW, imgH: state.imgH,
+      brushOp: state.brushOp, toolCfg: state.toolCfg, active: state.active,
+      wandTol: state.wandTol, edgeSnap: state.edgeSnap, snapTh: state.snapTh,
+      pin: pinLayer.painted ? pinLayer.canvas.toDataURL("image/png") : null,
+      layers: state.layers.map(l => ({
+        p:l.p, on:l.on, show:l.show, name:l.name, color:l.color, customColor:l.customColor,
+        mask: l.painted ? l.canvas.toDataURL("image/png") : null,
+      })),
+    };
+    await idbPut(snap);
+    asDirty = false;
+    setSaveStat("自動保存 ✓");
+    setTimeout(() => setSaveStat(""), 1400);
+  }catch(e){ setSaveStat(""); }
+  asBusy = false;
+}
+window.addEventListener("beforeunload", e => {
+  if(state.img && asDirty && state.layers.some(l => l.painted)){ e.preventDefault(); e.returnValue = ""; }
+});
+
+function restoreSession(snap){
+  const im = new Image();
+  im.onload = () => {
+    const c = document.createElement("canvas"); c.width = snap.imgW; c.height = snap.imgH;
+    c.getContext("2d").drawImage(im, 0, 0);
+    state.img = c; state.imgW = snap.imgW; state.imgH = snap.imgH; state.imgName = snap.imgName || "image";
+    gl.bindTexture(gl.TEXTURE_2D, texImg);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    if(snap.brushOp) setBrushOp(snap.brushOp);
+    if(snap.toolCfg){
+      if(snap.toolCfg.brush) Object.assign(state.toolCfg.brush, snap.toolCfg.brush);
+      if(snap.toolCfg.eraser) Object.assign(state.toolCfg.eraser, snap.toolCfg.eraser);
+    }
+    if(snap.wandTol){ state.wandTol = snap.wandTol; $("#wandTol").value = snap.wandTol; $("#wandTolV").textContent = snap.wandTol; }
+    if(snap.snapTh){ state.snapTh = snap.snapTh; $("#snapTh").value = snap.snapTh; $("#snapThV").textContent = snap.snapTh; }
+    if(snap.edgeSnap){ state.edgeSnap = true; $("#btnSnap").classList.add("on"); $("#snapRow").style.display = ""; }
+    state.layers = [];
+    let pending = 0;
+    const loadMask = (l, src) => {
+      pending++;
+      const mi = new Image();
+      mi.onload = () => { l.ctx.drawImage(mi, 0, 0, state.imgW, state.imgH); l.painted = true; if(--pending === 0) rebuildWeights(); };
+      mi.src = src;
+    };
+    (snap.layers || []).slice(0, MAXL).forEach((ld, i) => {
+      const l = newLayer(i);
+      Object.assign(l.p, ld.p || {});
+      l.on = ld.on !== false; if(ld.show === false) l.show = false;
+      if(ld.name) l.name = ld.name;
+      if(ld.color){ l.color = ld.color; l.customColor = !!ld.customColor; }
+      state.layers.push(l); initLayerCanvas(l);
+      if(ld.mask) loadMask(l, ld.mask);
+    });
+    if(state.layers.length === 0) addLayer();
+    initLayerCanvas(pinLayer);
+    if(snap.pin) loadMask(pinLayer, snap.pin);
+    state.active = clamp(snap.active || 0, 0, state.layers.length - 1); state.paintPin = false;
+    analyzeImage();
+    fitView(); if(pending === 0) rebuildWeights(); updateUI();
+    $("#drophint").style.display = "none";
+    $("#imgInfo").textContent = `${state.imgName} ${state.imgW}×${state.imgH}`;
+    asReady = true;
+  };
+  im.onerror = () => { asReady = true; };
+  im.src = snap.img;
+}
+
+function showRestoreBanner(snap){
+  const painted = (snap.layers || []).some(l => l.mask) || snap.pin;
+  if(!painted){ asReady = true; return; }
+  const when = new Date(snap.t || Date.now());
+  const hh = String(when.getHours()).padStart(2,"0"), mm = String(when.getMinutes()).padStart(2,"0");
+  const bar = document.createElement("div");
+  bar.id = "restoreBar";
+  bar.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:#1b1b1f;color:#eee;border:1px solid #444;border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:13px";
+  bar.innerHTML = `<span>前回の続き（${hh}:${mm}／${snap.imgName||"画像"}）が残ってる</span>`;
+  const mk = (label, bg) => { const b = document.createElement("button"); b.textContent = label; b.style.cssText = `border:0;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;background:${bg};color:#fff`; return b; };
+  const bY = mk("復元", "#3b6fe0"), bN = mk("破棄", "#555");
+  bY.onclick = () => { bar.remove(); restoreSession(snap); };
+  bN.onclick = () => { bar.remove(); idbClear(); asReady = true; };
+  bar.append(bY, bN);
+  document.body.appendChild(bar);
+}
+
+// 保存ステータス表示
+(() => {
+  const s = document.createElement("div");
+  s.id = "asStat";
+  s.style.cssText = "position:fixed;right:14px;bottom:12px;z-index:9998;background:rgba(20,20,24,.85);color:#bcd;border:1px solid #3a3a44;border-radius:8px;padding:4px 10px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none";
+  document.body.appendChild(s);
+})();
+
+/* ---------- 初期化 ---------- */
+addLayer();
+loadLS();
+setTool("brush");
+updateUI();
+fitView();
+idbGet().then(snap => { if(snap && snap.img) showRestoreBanner(snap); else asReady = true; })
+        .catch(() => { asReady = true; });
+</script>
+</body>
+</html>
+<!-- ゆれ助 v3.0 -->
