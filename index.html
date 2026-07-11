@@ -316,7 +316,7 @@ details.help summary{cursor:pointer; color:var(--tx);}
 <script>
 "use strict";
 /* =========================================================
-   ゆれ助 v2.0 — 画像の指定範囲をゆらす単一HTMLツール
+   ゆれ v3.0 — 画像の指定範囲をゆらす単一HTMLツール
    ========================================================= */
 const $ = s => document.querySelector(s);
 const clamp = (v,a,b) => v<a?a:(v>b?b:v);
@@ -2016,7 +2016,7 @@ function buildViewerHtml(data, title){
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)} — ゆれ助</title>
+<title>${esc(title)} — ゆれ</title>
 <style>
 html,body{height:100%;margin:0;background:#101216;overflow:hidden;}
 canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;}
@@ -2032,7 +2032,7 @@ cursor:pointer;backdrop-filter:blur(4px);opacity:.9;transition:opacity .2s;}
 <body>
 <canvas id="cv"></canvas>
 <button id="autoBtn" title="自動でゆれるのON/OFF（触った揺れはOFF中も効きます）">🌀 自動でゆれる</button>
-<div id="tip">塗った所をドラッグ＝つつく／背景ドラッグ＝シェイク — ゆれ助 v3.0</div>
+<div id="tip">塗った所をドラッグ＝つつく／背景ドラッグ＝シェイク — ゆれ v3.0</div>
 <script>
 "use strict";
 const D = ${JSON.stringify(data)};
@@ -2522,4 +2522,4 @@ idbGet().then(snap => { if(snap && snap.img) showRestoreBanner(snap); else asRea
 </script>
 </body>
 </html>
-<!-- ゆれ助 v3.0 -->
+<!-- ゆれ v3.0 -->
