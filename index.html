@@ -369,7 +369,7 @@ const PRESETS = {
   fine  : {amp:5,  freq:3.0,  ang:0,  wave:10, noise:20, hm:20, ph:0, mode:0, curve:0, damp:30},
   breath: {amp:8,  freq:0.25, ang:90, wave:3,  noise:18, hm:22, ph:0, mode:1, curve:0, damp:30},
   // まばたき: 目（まぶた）を塗って使う。下端を支点に縦につぶす×パルス
-  blink : {amp:52, freq:0.28, ang:90, wave:0,  noise:25, hm:14, ph:0, mode:2, curve:1, damp:30},
+  blink : {amp:56, freq:0.28, ang:90, wave:0,  noise:10, hm:14, ph:0, mode:2, curve:1, damp:30},
   // にっこり: 口角・頬を塗って使う。斜め上へ引っぱる×キープ
   smile : {amp:9,  freq:0.14, ang:262,wave:0,  noise:0,  hm:26, ph:0, mode:0, curve:2, damp:30},
   // かしげ: 頭や小物を塗って使う。重心を軸にゆっくり傾けてキープ
@@ -450,6 +450,7 @@ void main(){
     float w = (i<4)
       ? ((i==0) ? w4a.r : ((i==1) ? w4a.g : ((i==2) ? w4a.b : w4a.a)))
       : ((i==4) ? w4b.r : ((i==5) ? w4b.g : ((i==6) ? w4b.b : w4b.a)));
+    w = w*w*(3.0-2.0*w); // 境界の弱い重みを締める: 周囲（強化外）の色が縁からのびる/にじむのを抑える
     w *= u_on[i];
     w *= edgeFade;
     if(w > 0.004){
@@ -466,7 +467,7 @@ void main(){
         vec2 ax = vec2(u_dirx[i], u_diry[i]);
         vec2 pv = u_ctr[i] + ax * u_ref[i];        // 支点（領域の movement 側の縁）
         float proj = dot(p - pv, ax);
-        dir = -ax * clamp(proj/u_ref[i], -1.7, 1.7) * u_ref[i]/60.0; // 強さ60=支点まで全圧縮
+        dir = -ax * clamp(proj/u_ref[i], -1.7, 1.7) * u_ref[i]/48.0; // 強さ48で支点まで全圧縮（48〜60はめり込み代＝ぎゅっと閉じる余白）
         ph = proj * u_waveK[i] + u_ph0[i];
       } else if(u_mode[i] > 0.5){ // ふくらむ: 重心から放射状、距離に比例
         vec2 rv = p - u_ctr[i];
